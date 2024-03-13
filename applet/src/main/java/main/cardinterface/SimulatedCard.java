@@ -7,6 +7,7 @@ import javacard.framework.AID;
 import main.exceptions.CardRuntimeException;
 import main.utils.ApduFactory;
 import main.utils.DataFormatProcessor;
+import main.utils.TypeConverter;
 import main.utils.constants.ReturnMsgConstants;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
@@ -19,6 +20,12 @@ public class SimulatedCard implements ICard {
     private final CardSimulator simulator;
     private AID appletAID;
 
+    /**
+     * Constructor of SimulatedCard.
+     * Prepares the applet AID and the simulator.
+     *
+     * @param aid Applet AID
+     */
     public SimulatedCard(String aid) {
         appletAID = AIDUtil.create(aid);
         simulator = new CardSimulator();
@@ -58,16 +65,27 @@ public class SimulatedCard implements ICard {
 
     @Override
     public String revealSecret(String pin, String key) {
-        return null;
+        simulator.selectApplet(appletAID);
+
+        CommandAPDU commandAPDU = ApduFactory.revealSecretApdu(pin, key);
+        ResponseAPDU responseAPDU = simulator.transmitCommand(commandAPDU);
+
+        if (responseAPDU.getSW() != ReturnMsgConstants.SW_OK) {
+            throw new CardRuntimeException("Failed to get secret. Card code: " + responseAPDU.getSW());
+        }
+
+        return TypeConverter.bytesToHex(responseAPDU.getData());
     }
 
     @Override
     public void changePin(String oldPin, String newPin) {
+        simulator.selectApplet(appletAID);
 
-    }
+        CommandAPDU commandAPDU = ApduFactory.changePinApdu(oldPin, newPin);
+        ResponseAPDU responseAPDU = simulator.transmitCommand(commandAPDU);
 
-    @Override
-    public ResponseAPDU sendApdu(short cla, short ins, short p1, short p2, byte[] data) {
-        return null;
+        if (responseAPDU.getSW() != ReturnMsgConstants.SW_OK) {
+            throw new CardRuntimeException("Failed to change pin. Card code: " + responseAPDU.getSW());
+        }
     }
 }
