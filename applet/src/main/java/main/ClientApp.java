@@ -10,6 +10,12 @@ import main.utils.enums.CardType;
 import javax.smartcardio.CardException;
 import java.util.ArrayList;
 
+import main.utils.ApduFactory;
+import main.utils.TypeConverter;
+
+import javax.smartcardio.CommandAPDU;
+import javax.smartcardio.ResponseAPDU;
+
 public class ClientApp {
 
 
@@ -69,3 +75,5 @@ public class ClientApp {
         }
     }
 }
+
+
