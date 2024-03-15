@@ -1,9 +1,5 @@
 package main;
 
-import applet.MainApplet;
-import com.licel.jcardsim.smartcardio.CardSimulator;
-import com.licel.jcardsim.utils.AIDUtil;
-import javacard.framework.AID;
 import main.cardinterface.ICard;
 import main.cardinterface.RealCard;
 import main.cardinterface.SimulatedCard;
@@ -12,9 +8,6 @@ import main.utils.constants.CardSettings;
 import main.utils.enums.CardType;
 
 import javax.smartcardio.CardException;
-import javax.smartcardio.CommandAPDU;
-import javax.smartcardio.ResponseAPDU;
-import javax.smartcardio.TerminalFactory;
 import java.util.ArrayList;
 
 public class ClientApp {
