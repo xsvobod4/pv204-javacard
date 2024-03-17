@@ -18,11 +18,11 @@ public class MainApplet extends Applet implements MultiSelectable {
 	private static final byte INS_GET_STATE = (byte) 0x03;
 
 	private static final short MAX_SECRET_COUNT = 10;
-	private static final short MAX_SECRET_NAME_LENGTH = 20;
+	private static final short MAX_SECRET_NAME_LENGTH = 127;
 	private static final short MAX_SECRET_VALUE_LENGTH = 20;
 
-	private byte[][] secretNames;
-	private byte[][] secretValues;
+	private SecretNameArray[] secretNames;
+	private SecretArray[] secretValues;
 	private short secretCount;
 
 	private StateModel stateModel; // Instance of StateModel
@@ -35,15 +35,26 @@ public class MainApplet extends Applet implements MultiSelectable {
 		//first initiate in state_applet_uploaded
 		stateModel = new StateModel(StateModel.STATE_APPLET_UPLOADED);
 
-		secretNames = new byte[MAX_SECRET_COUNT][MAX_SECRET_NAME_LENGTH];
-		secretValues = new byte[MAX_SECRET_COUNT][MAX_SECRET_VALUE_LENGTH];
+		secretNames = new SecretNameArray[MAX_SECRET_COUNT];
+		secretValues = new SecretArray[MAX_SECRET_COUNT];
+
+		for (short i = 0; i < MAX_SECRET_COUNT; i++) {
+            secretNames[i] = new SecretNameArray();
+			secretValues[i] = new SecretArray();
+		}
+
 		secretCount = 0;
 
-
 		// Hardcoded secret names and values
-		storeSecret("Secret1".getBytes(), "Value1".getBytes());
-		storeSecret("Secret2".getBytes(), "Value2".getBytes());
-		storeSecret("Secret3".getBytes(), "Value3".getBytes());
+		storeSecret(
+				new byte[]{'S', 'e', 'c', 'r', 'e', 't', '1'},
+				new byte[]{'V', 'a', 'l', 'u', 'e', '1'});
+		storeSecret(
+				new byte[]{'S', 'e', 'c', 'r', 'e', 't', '2'},
+				new byte[]{'V', 'a', 'l', 'u', 'e', '2'});
+		storeSecret(
+				new byte[]{'S', 'e', 'c', 'r', 'e', 't', '3'},
+				new byte[]{'V', 'a', 'l', 'u', 'e', '3'});
 
 		// more state changes just for demo purposes
 		// stateModel.setSecondaryState(StateModel.SECURE_CHANNEL_ESTABLISHED);
@@ -82,6 +93,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 				break;
 			default:
 				ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
+			stateModel.changeState(StateModel.STATE_UNPRIVILEGED);
 		}
 	}
 
@@ -92,9 +104,9 @@ public class MainApplet extends Applet implements MultiSelectable {
 		// Prepare response with secret names
 		for (short i = 0; i < secretCount; i++) {
 			// Find the end of the secret name
-			short nameLength = secretNames[i][0]; // Get the stored name length
+			short nameLength = secretNames[i].getSecret()[0]; // Get the stored name length
 			// Copy the secret name to the response buffer, skipping the first byte (length)
-			Util.arrayCopyNonAtomic(secretNames[i], (short) 1, buffer, len, nameLength);
+			Util.arrayCopyNonAtomic(secretNames[i].secretName, (short) 1, buffer, len, nameLength);
 			len += nameLength;
 			// Add a newline character for formatting
 			buffer[len++] = '\n';
@@ -109,7 +121,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 	}
 
 	public void deselect(boolean b) {
-
+		stateModel.changeState(StateModel.STATE_UNPRIVILEGED);
 	}
 
 	private void storeSecret(byte[] name, byte[] value) {
@@ -119,11 +131,11 @@ public class MainApplet extends Applet implements MultiSelectable {
 				// Ensure there is enough space in the secretNames and secretValues arrays
 				if ((short)(name.length + 1) <= MAX_SECRET_NAME_LENGTH && (short)value.length <= MAX_SECRET_VALUE_LENGTH) {
 					// Store the length of the name as the first byte
-					secretNames[secretCount][0] = (byte) name.length;
+					secretNames[secretCount].getSecret()[0] = (byte) name.length;
 					// Copy the name to the secretNames array, starting from the second byte
-					Util.arrayCopyNonAtomic(name, (short) 0, secretNames[secretCount], (short) 1, (short) name.length);
+					Util.arrayCopyNonAtomic(name, (short) 0, secretNames[secretCount].getSecret(), (short) 1, (short) name.length);
 					// Copy the value to the secretValues array
-					Util.arrayCopyNonAtomic(value, (short) 0, secretValues[secretCount], (short) 0, (short) value.length);
+					Util.arrayCopyNonAtomic(value, (short) 0, secretValues[secretCount].getSecret(), (short) 0, (short) value.length);
 					// Increment the secret count
 					secretCount++;
 				} else {
@@ -151,16 +163,16 @@ public class MainApplet extends Applet implements MultiSelectable {
 		// Extract secret name from APDU buffer
 		short nameOffset = ISO7816.OFFSET_CDATA;
 		short nameLength = apduBuffer[nameOffset];
-		if (nameLength + 1 > dataLength) {
+		if ((short) (nameLength + (short) 1) > dataLength) {
 			ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
 		}
 
 		// Compare the provided secret name with stored names
 		for (short i = 0; i < secretCount; i++) {
 			// Get the stored secret name and its length
-			short storedNameLength = secretNames[i][0];
+			short storedNameLength = secretNames[i].getSecret()[0];
 			byte[] storedName = new byte[storedNameLength];
-			Util.arrayCopyNonAtomic(secretNames[i], (short) 1, storedName, (short) 0, storedNameLength);
+			Util.arrayCopyNonAtomic(secretNames[i].secretName, (short) 1, storedName, (short) 0, storedNameLength);
 
 			// Check if the lengths are equal
 			if (nameLength != storedNameLength) {
@@ -170,7 +182,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 			// Compare each byte of the name
 			boolean match = true;
 			for (short j = 0; j < nameLength; j++) {
-				if (apduBuffer[nameOffset + j + 1] != storedName[j]) {
+				if (apduBuffer[(short) (nameOffset + j + (short) 1)] != storedName[j]) {
 					match = false;
 					break;
 				}
@@ -178,17 +190,17 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 			// If all bytes match, send back the corresponding secret value
 			if (match) {
-				short valueLength = (short) secretValues[i].length;
+				short valueLength = (short) secretValues[i].getSecret().length;
 				// Determine the actual length of the value
 				for (short k = 0; k < valueLength; k++) {
-					if (secretValues[i][k] == 0) {
+					if (secretValues[i].secret[k] == 0) {
 						valueLength = k;
 						break;
 					}
 				}
 				apdu.setOutgoing();
 				apdu.setOutgoingLength(valueLength);
-				apdu.sendBytesLong(secretValues[i], (short) 0, valueLength);
+				apdu.sendBytesLong(secretValues[i].secret, (short) 0, valueLength);
 				return;
 			}
 		}

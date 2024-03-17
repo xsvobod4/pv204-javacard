@@ -244,7 +244,14 @@ public class InputParser {
     }
 
     private boolean isPrintable(String str) {
-        return str.chars().allMatch(c -> c >= 33 && c <= 126);
+
+        for (int i = 0; i < str.length(); i++) {
+            if (str.charAt(i) < 33 || str.charAt(i) > 126) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public CardType getCardType() {
