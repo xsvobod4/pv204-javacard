@@ -14,7 +14,7 @@ public class InputParser {
     private String key = null;
 
     private static final int PIN_LENGTH = ApduFactory.PIN_LENGTH;
-    private static final int KEY_LENGTH = 15;
+    private static final int KEY_LENGTH = 7;
 
     /**
      * Parses command line arguments and initializes InputParser.
@@ -86,16 +86,19 @@ public class InputParser {
         System.out.println("-----SECRET STORAGE CARD CLIENT-----");
         System.out.println("Usage:");
         System.out.println("java -jar client.jar [-h | --help] -c <card type> [-t <terminal number>] -i <instruction> [instruction_options]");
+        System.out.println("./gradlew run --args=\"[-h | --help] -c <card type> [-t <terminal number>] -i <instruction> [instruction_options]\"");
+        System.out.println();
         System.out.println("Instruction options:");
-        System.out.println("-p, --pin <pin>\tFour digit card PIN.");
+        System.out.println("-p, --pin <pin>\t\tFour digit card PIN.");
         System.out.println("-n, --new_pin <pin>\tNew four digit PIN for PIN change.");
-        System.out.printf("-k, --key <key>\tQuery data key. Should be a number 1-%d.", KEY_LENGTH);
-
+        System.out.printf("-k, --key <key>\t\tQuery data key. Should be at most %d character long keyword.\n", KEY_LENGTH);
+        System.out.println();
         System.out.println("Card types:");
         System.out.println("sim\tSimulated card.");
         System.out.println("real\tReal card.");
+        System.out.println();
         System.out.println("Instructions:");
-        System.out.println("change_pin, cp\tPIN change.\tOptions: -p <old pin> -n <new pin>");
+        System.out.println("change_pin, cp\t\tPIN change.\tOptions: -p <old pin> -n <new pin>");
         System.out.println("get_secret_names, sn\tGet secret names.");
         System.out.println("reveal_secret, rs\tReveal secret.\tOptions: -p <pin> -k <key>");
     }
@@ -178,10 +181,19 @@ public class InputParser {
 
         String trimmedKey = key.trim();
 
+        //Only printable characters can be a key
+        if (!isPrintable(trimmedKey)) {
+            throw new IllegalArgumentException("Key should only feature printable characters: ");
+        }
+
         try {
-            //Key is a postive intere of max value of KEY_LENGTH
-            if (Integer.parseInt(trimmedKey) < 1 || Integer.parseInt(trimmedKey) > KEY_LENGTH) {
-                throw new IllegalArgumentException("Invalid key: " + trimmedKey);
+            //Key is a string of length at most KEY_LENGTH
+            if (key.length() > KEY_LENGTH) {
+                throw new IllegalArgumentException("Key too long: ");
+            } else if (key.length() < KEY_LENGTH) {
+                //Key is padded up to the value of KEY_LENGTH with spaces
+                trimmedKey = trimmedKey +
+                        new String(new char[KEY_LENGTH - trimmedKey.length()]).replace('\0', ' ');
             }
         } catch (NumberFormatException e) {
             printHelp();
@@ -229,6 +241,10 @@ public class InputParser {
             default:
                 throw new IllegalStateException("Unknown instruction");
         }
+    }
+
+    private boolean isPrintable(String str) {
+        return str.chars().allMatch(c -> c >= 33 && c <= 126);
     }
 
     public CardType getCardType() {

@@ -53,23 +53,33 @@ public class InputParserTest {
     }
 
     @Test
-    public void testCorrectRevealSecret() {
+    public void testCorrectRevealSecretCorrect() {
         InputParser inputParser = new InputParser();
-        inputParser.parseArgs(new String[]{"-c", "sim", "-i", "reveal_secret", "-p", "1234", "-k", "11"});
+        inputParser.parseArgs(new String[]{"-c", "sim", "-i", "reveal_secret", "-p", "1234", "-k", "ABcd~&1"});
         assertEquals(CardType.SIMULATED, inputParser.getCardType());
         assertEquals(Instruction.REVEAL_SECRET, inputParser.getInstruction());
         assertEquals("1234", inputParser.getPin());
-        assertEquals("11", inputParser.getKey());
+        assertEquals("ABcd~&1", inputParser.getKey());
     }
 
     @Test
-    public void testCorrectRevealSecret2() {
+    public void testCorrectRevealSecretCorrect2() {
         InputParser inputParser = new InputParser();
-        inputParser.parseArgs(new String[]{"-c", "real", "-i", "reveal_secret", "-k", "11", "-p", "1234"});
+        inputParser.parseArgs(new String[]{"-c", "real", "-i", "reveal_secret", "-k", "ABcd_12", "-p", "1234"});
         assertEquals(CardType.REAL, inputParser.getCardType());
         assertEquals(Instruction.REVEAL_SECRET, inputParser.getInstruction());
         assertEquals("1234", inputParser.getPin());
-        assertEquals("11", inputParser.getKey());
+        assertEquals("ABcd_12", inputParser.getKey());
+    }
+
+    @Test
+    public void testCorrectRevealSecrectPadding() {
+        InputParser inputParser = new InputParser();
+        inputParser.parseArgs(new String[]{"-c", "real", "-i", "reveal_secret", "-k", "ABcd_", "-p", "1234"});
+        assertEquals(CardType.REAL, inputParser.getCardType());
+        assertEquals(Instruction.REVEAL_SECRET, inputParser.getInstruction());
+        assertEquals("1234", inputParser.getPin());
+        assertEquals("ABcd_  ", inputParser.getKey());
     }
 
     @Test

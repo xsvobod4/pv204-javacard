@@ -42,7 +42,7 @@ public class ClientApp {
                 throw new RuntimeException("Failed to connect to the card. Try different terminal: " + e.getMessage());
             }
         } else {
-            throw new IllegalArgumentException("Invalid card type: " + inputParser.getCardType());
+            return;
         }
 
         //Execute the instruction
