@@ -51,7 +51,7 @@ public class TestingClientApp {
 //        data[0] = (byte) secretName.length;
 //        System.arraycopy(secretName, 0, data, 1, secretName.length);
 
-        CommandAPDU revealSecretApdu = ApduFactory.createAPDU(
+        CommandAPDU revealSecretApdu = ApduFactory.genericApdu(
                 (byte) 0x00, // CLA
                 (byte) 0x02, // INS_GET_SECRET_VALUE
                 (byte) 0x00, // P1
