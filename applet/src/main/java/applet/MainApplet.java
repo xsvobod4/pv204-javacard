@@ -31,10 +31,13 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 	private OwnerPIN pin;
 	static final byte PIN_LENGTH = (byte) 0x04;
-	static final byte PIN_MAX_RETRIES = 3;
+	static final byte PIN_MAX_RETRIES = (byte) 0x03;
 	private final byte[] DEFAULT_PIN = {(byte) 0x01, (byte) 0x02, (byte) 0x03, (byte) 0x04};
 
 	private final byte[] SECOND_PIN = {(byte) 0x02, (byte) 0x02, (byte) 0x04, (byte) 0x04};
+
+	private final byte RTR_PIN_SUCCESS = (byte) 0x90;
+	private final byte RTR_PIN_FAILED = (byte) 0xCF;
 	private StateModel stateModel; // Instance of StateModel
 
 	public static void install(byte[] bArray, short bOffset, byte bLength) {
@@ -96,7 +99,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 				updatePIN(apdu);
 				break;
 			case INS_VERIFY_PIN:
-				verifyPIN(apdu,5, 9);
+				verifyPIN(apdu,(short) 5, (short) 9);
 				break;
 			default:
 				ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
@@ -159,7 +162,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 	}
 
 	private void getSecretValue(APDU apdu, short dataLength) {
-		if (!verifyPIN(apdu,6, 10))
+		if (verifyPIN(apdu,(short) 6, (short) 10) != RTR_PIN_SUCCESS)
 			ISOException.throwIt((short)((short) 0x63c0 | (short) pin.getTriesRemaining()));
 
 		stateModel.changeState(StateModel.STATE_PRIVILEGED);
@@ -237,12 +240,12 @@ public class MainApplet extends Applet implements MultiSelectable {
 	}
 */
 	// Method to verify PIN
-	private boolean verifyPIN(APDU apdu, int startInter, int endInter) {
+	private byte verifyPIN(APDU apdu, short startInter, short endInter) {
 		byte[] pinAttempt = getPinFromBuffer(apdu.getBuffer(),startInter,endInter);
-		return pin.check(pinAttempt, (short) 0, (byte) pinAttempt.length);
+		return pin.check(pinAttempt, (short) 0, (byte) pinAttempt.length) ? RTR_PIN_SUCCESS : RTR_PIN_FAILED;
 	}
 
-	private byte[] getPinFromBuffer(byte[] buffer, int startInter, int endInter) {
+	private byte[] getPinFromBuffer(byte[] buffer, short startInter, short endInter) {
 		String pinBuffer = new String(Arrays.copyOfRange(buffer, startInter, endInter));
 		byte[] bufferPIN = new byte[4];
 
@@ -252,16 +255,17 @@ public class MainApplet extends Applet implements MultiSelectable {
 		return bufferPIN;
 	}
 
-	private boolean updatePIN(APDU apdu) {
-		if (!verifyPIN(apdu,5, 9))
+	private byte updatePIN(APDU apdu) {
+
+		if (verifyPIN(apdu,(short) 5, (short) 9) != RTR_PIN_SUCCESS)
 			ISOException.throwIt((short)((short) 0x63c0 | (short) pin.getTriesRemaining()));
 
 //		stateModel.changeState(StateModel.STATE_PRIVILEGED);
 
-		byte[] newPin = getPinFromBuffer(apdu.getBuffer(),9,13);
+		byte[] newPin = getPinFromBuffer(apdu.getBuffer(),(short) 9,(short) 13);
 		pin.update(newPin, (short) 0, (byte) PIN_LENGTH);
 
 //		stateModel.changeState(StateModel.STATE_UNPRIVILEGED);
-		return true;
+		return RTR_PIN_SUCCESS;
 	}
 }

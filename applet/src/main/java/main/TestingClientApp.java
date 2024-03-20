@@ -10,9 +10,8 @@ import main.utils.TypeConverter;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 import javax.smartcardio.TerminalFactory;
-import java.nio.charset.StandardCharsets;
 
-public class ClientApp {
+public class TestingClientApp {
 
 
     public static void main(String[] args){
@@ -31,6 +30,7 @@ public class ClientApp {
         // 4. send APDU
         CommandAPDU commandAPDUList = new CommandAPDU(0x00, 0x01, 0x00, 0x00);
         ResponseAPDU responseList = simulator.transmitCommand(commandAPDUList);
+        System.out.println("List secrets:");
         System.out.println(new String(responseList.getData()));
 
 
@@ -60,10 +60,12 @@ public class ClientApp {
         );
         // Transmit the APDU command to the JavaCard applet
         ResponseAPDU responseReveal = simulator.transmitCommand(revealSecretApdu);
+        System.out.println("Reveal secret:");
         System.out.println(new String(responseReveal.getData()));
 
         CommandAPDU commandGetState = new CommandAPDU(0x00, 0x03, 0x00, 0x00);
         ResponseAPDU responseGetState = simulator.transmitCommand(commandGetState);
+        System.out.println("Get state:");
         System.out.println(TypeConverter.bytesToHex(responseGetState.getData()));
 
 
@@ -93,6 +95,7 @@ public class ClientApp {
 
         CommandAPDU pinChange = new CommandAPDU(0x00, 0x05, 0x00, 0x00, pinData);
         ResponseAPDU responseChangePIN = simulator.transmitCommand(pinChange);
+        System.out.println("Change PIN:");
         System.out.println(TypeConverter.bytesToHex(responseChangePIN.getData()));
     }
 
