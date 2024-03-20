@@ -34,11 +34,22 @@ public class ClientApp {
         System.out.println(new String(responseList.getData()));
 
 
+        String DEFAULT_PIN = "1234";
+        String secretName = "Secret1";
+        byte[] DEFAULT_PIN_BYTE = DEFAULT_PIN.getBytes();
+        byte[] secretNameBytes = secretName.getBytes();
+//
+        // Create a new buffer with space for the length byte and the PIN bytes
+        byte[] data = new byte[DEFAULT_PIN_BYTE.length + secretNameBytes.length + 1];
+        // Set the first byte of the buffer to the length of the PIN array
+        data[0] = (byte) secretNameBytes.length;        // Copy the PIN bytes into the buffer starting from index 1
+        System.arraycopy((DEFAULT_PIN+secretName).getBytes(), 0, data, 1, DEFAULT_PIN.length()+ secretName.length());
 
-        byte[] secretName = "Secret1".getBytes();
-        byte[] data = new byte[secretName.length + 1];
-        data[0] = (byte) secretName.length;
-        System.arraycopy(secretName, 0, data, 1, secretName.length);
+
+//        byte[] secretName = "Secret1".getBytes();
+//        byte[] data = new byte[secretName.length + 1];
+//        data[0] = (byte) secretName.length;
+//        System.arraycopy(secretName, 0, data, 1, secretName.length);
 
         CommandAPDU revealSecretApdu = ApduFactory.createAPDU(
                 (byte) 0x00, // CLA
@@ -56,8 +67,37 @@ public class ClientApp {
         System.out.println(TypeConverter.bytesToHex(responseGetState.getData()));
 
 
+//        byte[] DEFAULT_PIN_BYTE = DEFAULT_PIN.getBytes();
+        // Create a new buffer with space for the length byte and the PIN bytes
+        byte[] buffer = new byte[DEFAULT_PIN_BYTE.length];
+        // Set the first byte of the buffer to the length of the PIN array
+//        buffer[0] = (byte) DEFAULT_PIN_BYTE.length;
+        // Copy the PIN bytes into the buffer starting from index 1
+        System.arraycopy(DEFAULT_PIN_BYTE, 0, buffer, 0, DEFAULT_PIN_BYTE.length);
 
+
+        CommandAPDU pinCheck = new CommandAPDU(0x00, 0x04, 0x00, 0x00, buffer);
+        ResponseAPDU responseVerifyPIN = simulator.transmitCommand(pinCheck);
+//        System.out.println(TypeConverter.bytesToHex(responseVerifyPIN.getData()));
+
+
+
+        String NEW_PIN = "2323";
+        byte[] NEW_PIN_BYTES = NEW_PIN.getBytes();
+        // Create a new buffer with space for the length byte and the PIN bytes
+        byte[] pinData = new byte[DEFAULT_PIN_BYTE.length + NEW_PIN_BYTES.length];
+        // Set the first byte of the buffer to the length of the PIN array
+//        pinData[0] = (byte) DEFAULT_PIN_BYTE.length;
+        // Copy the PIN bytes into the buffer starting from index 1
+        System.arraycopy((DEFAULT_PIN+NEW_PIN).getBytes(), 0, pinData, 0, 8);
+
+        CommandAPDU pinChange = new CommandAPDU(0x00, 0x05, 0x00, 0x00, pinData);
+        ResponseAPDU responseChangePIN = simulator.transmitCommand(pinChange);
+        System.out.println(TypeConverter.bytesToHex(responseChangePIN.getData()));
     }
+
+
 }
+
 
 
