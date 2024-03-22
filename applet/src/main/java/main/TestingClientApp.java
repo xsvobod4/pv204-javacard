@@ -17,6 +17,8 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.interfaces.RSAPublicKey;
+import java.util.Arrays;
 
 public class TestingClientApp {
 
@@ -41,8 +43,8 @@ public class TestingClientApp {
         System.out.println("Data length:" + responseList.getData().length);
         System.out.println(new String(responseList.getData()));
 
-        /*
 
+    /*
 
         byte[] DEFAULT_PIN = new byte[]{0x01, 0x02, 0x03, 0x04};
         byte secretName = (byte) 0x01;
@@ -86,20 +88,27 @@ public class TestingClientApp {
         System.out.println("Rtr: " + (short) responseChangePIN.getSW());
         System.out.println("0x9000: " + (short) 0x9000);
 
-        */
+*/
         /////////////////////////////////////////////////////// secure channel test:
 
 
         KeyPair keyPair = generateRSAKeyPair();
         PublicKey publicKey = keyPair.getPublic();
-        byte[] publicKeyBytes = publicKey.getEncoded();
+        RSAPublicKey rsaPublicKey = (RSAPublicKey) publicKey;
+        byte[] modulusBytesWithSign = rsaPublicKey.getModulus().toByteArray();
+        byte[] modulusBytes;
+        if (modulusBytesWithSign[0] == 0) {
+            modulusBytes = Arrays.copyOfRange(modulusBytesWithSign, 1, modulusBytesWithSign.length);
+        } else {
+            modulusBytes = modulusBytesWithSign;
+        }
 
         CommandAPDU commandAPDUSCInnit = ApduFactory.genericApdu(
                 (byte) 0x00, // CLA
                 (byte) InstructionConstants.INS_SC_INIT, // INS_GET_SECRET_VALUE
                 (byte) 0x00, // P1
                 (byte) 0x00, // P2
-                publicKeyBytes         // Data
+                modulusBytes         // Data
         );
         ResponseAPDU responseAPDUSCInnit = simulator.transmitCommand(commandAPDUSCInnit);
 
@@ -112,7 +121,7 @@ public class TestingClientApp {
 
     private static KeyPair generateRSAKeyPair() throws Exception {
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-        keyPairGenerator.initialize(2048);
+        keyPairGenerator.initialize(1024);
         return keyPairGenerator.generateKeyPair();
     }
 

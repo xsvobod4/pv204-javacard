@@ -1,13 +1,10 @@
 package applet;
 
-import java.util.Arrays;
 import javacard.security.*;
-import javacardx.apdu.ExtendedLength;
 import javacardx.crypto.Cipher;
 import javacard.framework.*;
-import sun.security.provider.SHA;
 
-public class MainApplet extends Applet implements MultiSelectable, ExtendedLength {
+public class MainApplet extends Applet implements MultiSelectable {
 	/**
 	 * TODO: fix state model (secondary state check) - teď zakomentován, protože neprošlo nic
 	 *
@@ -57,9 +54,10 @@ public class MainApplet extends Applet implements MultiSelectable, ExtendedLengt
 	private AESKey aesKey;
 	private Cipher rsaCipher;
 	private static final short AES_KEY_SIZE_BITS = KeyBuilder.LENGTH_AES_256;
-	private static final short RSA_MODULUS_LENGTH = 256; // Length of RSA modulus in bytes
+	private static final short RSA_MODULUS_LENGTH = 128; // Length of RSA modulus in bytes
 	private static final short AES_KEY_SIZE_BYTES = 16; // AES key size in bytes
-	private static RandomData cspRNG;
+	private byte[] exponentBytes = {0x01, 0x00, 0x01};
+	private RandomData rng;
 
 
 	public static void install(byte[] bArray, short bOffset, byte bLength) {
@@ -73,7 +71,8 @@ public class MainApplet extends Applet implements MultiSelectable, ExtendedLengt
 		//Secure channel stuff
 		aesKey = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_128, false);
 		// generateRandomAESKey(aesKey);
-		rsaCipher = Cipher.getInstance(Cipher.ALG_RSA_PKCS1, false);
+		rsaCipher = Cipher.getInstance(Cipher.ALG_RSA_NOPAD, false);
+		rng = RandomData.getInstance(RandomData.ALG_SECURE_RANDOM);
 
 
 		secretValues = new SecretStore[MAX_SECRET_COUNT];
@@ -121,7 +120,7 @@ public class MainApplet extends Applet implements MultiSelectable, ExtendedLengt
 		}
 
 		byte[] apduBuffer = apdu.getBuffer();
-		short dataLength = apdu.setIncomingAndReceive();
+		// short dataLength = apdu.setIncomingAndReceive();
 
 		byte ins = apduBuffer[ISO7816.OFFSET_INS];
 
@@ -175,19 +174,23 @@ public class MainApplet extends Applet implements MultiSelectable, ExtendedLengt
 		doGenerateRandom(aesKeyBytes, (short) 0, AES_KEY_SIZE_BYTES);
 		aesKey.setKey(aesKeyBytes, (short) 0);
 
+		// Exponent value 65537
+		rsaPublicKey.setExponent(exponentBytes, (short) 0, (short) exponentBytes.length);
+		// Create a separate byte buffer to hold the encrypted data
+		byte[] encryptedBuffer = new byte[RSA_MODULUS_LENGTH]; // Assuming the size of RSA modulus is the maximum size of encrypted data
 		// Encrypt AES key using RSA public key
 		rsaCipher.init(rsaPublicKey, Cipher.MODE_ENCRYPT);
-		short cipherLength = rsaCipher.doFinal(aesKeyBytes, (short) 0, AES_KEY_SIZE_BYTES, apduBuffer, (short) 0);
+		rsaCipher.doFinal(aesKeyBytes, (short) 0, (short) aesKeyBytes.length, encryptedBuffer, (short) 0);
 
 		// Send encrypted AES key as response
 		apdu.setOutgoing();
-		apdu.setOutgoingLength(cipherLength);
-		apdu.sendBytesLong(apduBuffer, (short) 0, cipherLength);
+		apdu.setOutgoingLength(RSA_MODULUS_LENGTH);
+		apdu.sendBytesLong(encryptedBuffer, (short) 0, RSA_MODULUS_LENGTH);
 	}
 
 
-	static void doGenerateRandom(byte[] buffer, short offset, short length) {
-		cspRNG.generateData(buffer, offset, length);
+	private void doGenerateRandom(byte[] buffer, short offset, short length) {
+		rng.generateData(buffer, offset, length);
 	}
 
 	private void listSecrets(APDU apdu) {
