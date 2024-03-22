@@ -1,6 +1,7 @@
 package applet;
 
 import javacard.security.*;
+import javacardx.apdu.ExtendedLength;
 import javacardx.crypto.Cipher;
 import javacard.framework.*;
 
@@ -53,11 +54,11 @@ public class MainApplet extends Applet implements MultiSelectable {
 	//stuff connected with secure channel
 	private AESKey aesKey;
 	private Cipher rsaCipher;
-	private static final short AES_KEY_SIZE_BITS = KeyBuilder.LENGTH_AES_256;
 	private static final short RSA_MODULUS_LENGTH = 128; // Length of RSA modulus in bytes
 	private static final short AES_KEY_SIZE_BYTES = 16; // AES key size in bytes
 	private byte[] exponentBytes = {0x01, 0x00, 0x01};
 	private RandomData rng;
+	private static final short EEPROM_OFFSET_AES_KEY = (short) 0x1000; // Adjust as needed
 
 
 	public static void install(byte[] bArray, short bOffset, byte bLength) {
@@ -71,7 +72,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 		//Secure channel stuff
 		aesKey = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_128, false);
 		// generateRandomAESKey(aesKey);
-		rsaCipher = Cipher.getInstance(Cipher.ALG_RSA_NOPAD, false);
+		rsaCipher = Cipher.getInstance(Cipher.ALG_RSA_PKCS1, false);
 		rng = RandomData.getInstance(RandomData.ALG_SECURE_RANDOM);
 
 
@@ -124,10 +125,39 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 		byte ins = apduBuffer[ISO7816.OFFSET_INS];
 
+		// not so nice, would be better to check based on state
+		// TODO: doladit tuhle logiku s pomocí state enforceru:
+		//if key is empty and INS = ISN_INIT_SC -> proceed to switch, it is ok
+		//if key is empty and INS =/= ISN_INIT_SC -> throw exception
+		//if key is not empty and INS is ISN_INIT_SC -> proceed to switch, it is ok
+		//if key not empty and ins is not ISN_INIT_SC: decrypt whole apdu buffer and proceeds to switch
+		boolean isKeyEmpty = false; // Flag to indicate if the key is empty
+		try {
+			byte[] keyData = new byte[AES_KEY_SIZE_BYTES];
+			aesKey.getKey(keyData, (short) 0);
+
+			// If no exception occurs, the key is not empty
+			isKeyEmpty = false;
+
+			if (ins != INS_SC_INIT) {
+				decryptAPDU(apduBuffer);
+			}
+		} catch (CryptoException e) {
+			// Handle the case where the key data has not been successfully initialized
+			isKeyEmpty = true;
+
+			if (ins != INS_SC_INIT) {
+				ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+			}
+		}
+
+
+
 		switch (ins) {
 			case INS_SC_INIT:
 				// stateModel.checkAllowedFunction(StateModel.FNC_InitSecureChannel);
 				initSecureChannel(apdu);
+				// TODO: stateModel.changeSTATE - to new state where it can only accept INS_SC_INIT or ENCRYPTED APDUs
 				break;
 			case INS_LIST_SECRETS:
 				// Check if the function is allowed in the current state
@@ -191,6 +221,25 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 	private void doGenerateRandom(byte[] buffer, short offset, short length) {
 		rng.generateData(buffer, offset, length);
+	}
+
+	private void decryptAPDU(byte[] apduBuffer) {
+		try {
+			// Create AES cipher instance for decryption
+			Cipher aesCipher = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_CBC_NOPAD, false);
+
+			// Initialize AES cipher with the AES key and IV
+			aesCipher.init(aesKey, Cipher.MODE_DECRYPT, apduBuffer, ISO7816.OFFSET_CDATA, (short) 16);
+
+			// Decrypt the APDU buffer in-place
+			aesCipher.doFinal(apduBuffer, ISO7816.OFFSET_CDATA, (short) (apduBuffer[ISO7816.OFFSET_LC] & 0xFF), apduBuffer, ISO7816.OFFSET_CDATA);
+
+			// Update the Lc field in the APDU header
+			apduBuffer[ISO7816.OFFSET_LC] = (byte) (apduBuffer[ISO7816.OFFSET_LC] - 16);
+		} catch (CryptoException e) {
+			// Handle decryption error
+			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+		}
 	}
 
 	private void listSecrets(APDU apdu) {

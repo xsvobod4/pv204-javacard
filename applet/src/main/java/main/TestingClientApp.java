@@ -10,9 +10,11 @@ import main.utils.TypeConverter;
 import main.utils.constants.InstructionConstants;
 
 import javax.crypto.Cipher;
+import javax.crypto.spec.SecretKeySpec;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 import javax.smartcardio.TerminalFactory;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
@@ -91,6 +93,7 @@ public class TestingClientApp {
 */
         /////////////////////////////////////////////////////// secure channel test:
 
+        //////establish aes key
 
         KeyPair keyPair = generateRSAKeyPair();
         PublicKey publicKey = keyPair.getPublic();
@@ -102,7 +105,6 @@ public class TestingClientApp {
         } else {
             modulusBytes = modulusBytesWithSign;
         }
-
         CommandAPDU commandAPDUSCInnit = ApduFactory.genericApdu(
                 (byte) 0x00, // CLA
                 (byte) InstructionConstants.INS_SC_INIT, // INS_GET_SECRET_VALUE
@@ -112,9 +114,30 @@ public class TestingClientApp {
         );
         ResponseAPDU responseAPDUSCInnit = simulator.transmitCommand(commandAPDUSCInnit);
 
-        byte[] decryptedData = decryptWithPrivateKey(responseAPDUSCInnit.getData(), keyPair.getPrivate());
-        System.out.println("Decrypted KEY length: " + decryptedData.length);
-        System.out.println("Decrypted KEY: " + new String(decryptedData));
+        byte[] decryptedAESkey = decryptWithPrivateKey(responseAPDUSCInnit.getData(), keyPair.getPrivate());
+        SecretKeySpec aesKey = new SecretKeySpec(decryptedAESkey, "AES");
+        System.out.println("Decrypted KEY length: " + decryptedAESkey.length);
+        System.out.println("Decrypted KEY: " + new String(decryptedAESkey));
+
+        ////// use aes key with encryption
+
+        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+        cipher.init(Cipher.ENCRYPT_MODE, aesKey);
+
+        CommandAPDU commandAPDUList3 = new CommandAPDU(0x00, InstructionConstants.INS_GET_SECRET_NAMES, 0x00, 0x00);
+        byte[] apduData = commandAPDUList3.getData();
+        // Encrypt the payload data
+        byte[] encryptedAPDUData = cipher.doFinal(apduData);
+        // Create a new CommandAPDU with the encrypted payload data
+        CommandAPDU encryptedCommandAPDU = new CommandAPDU(0x00, InstructionConstants.INS_GET_SECRET_NAMES, 0x00, 0x00, encryptedAPDUData);
+        // Transmit the encrypted APDU
+        ResponseAPDU responseList3 = simulator.transmitCommand(encryptedCommandAPDU);
+        // Decrypt the response data
+        byte[] decryptedResponseData = cipher.doFinal(responseList3.getData());
+        String decryptedResponse = new String(decryptedResponseData, StandardCharsets.UTF_8);        // Print the decrypted response
+        System.out.println("List secrets:");
+        System.out.println("Data length: " + decryptedResponseData.length);
+        System.out.println(decryptedResponse);
 
     }
 
