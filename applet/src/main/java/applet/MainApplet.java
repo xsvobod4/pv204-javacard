@@ -1,11 +1,13 @@
 package applet;
 
 import java.util.Arrays;
-
+import javacard.security.*;
+import javacardx.apdu.ExtendedLength;
+import javacardx.crypto.Cipher;
 import javacard.framework.*;
 import sun.security.provider.SHA;
 
-public class MainApplet extends Applet implements MultiSelectable {
+public class MainApplet extends Applet implements MultiSelectable, ExtendedLength {
 	/**
 	 * TODO: fix state model (secondary state check) - teď zakomentován, protože neprošlo nic
 	 *
@@ -21,6 +23,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 	private static final byte INS_GET_STATE = (byte) 0x1C;
 	static final byte INS_VERIFY_PIN = (byte) 0x1D;
 	static final byte INS_CHANGE_PIN = (byte) 0xC2;
+	private static final byte INS_SC_INIT = (byte) 0xE2;
 
 	private static final short MAX_SECRET_COUNT = 16;
 	private static final short MAX_SECRET_NAME_LENGTH = 20;
@@ -49,6 +52,16 @@ public class MainApplet extends Applet implements MultiSelectable {
 	private OwnerPIN pin;
 	private StateModel stateModel; // Instance of StateModel
 
+
+	//stuff connected with secure channel
+	private AESKey aesKey;
+	private Cipher rsaCipher;
+	private static final short AES_KEY_SIZE_BITS = KeyBuilder.LENGTH_AES_256;
+	private static final short RSA_MODULUS_LENGTH = 256; // Length of RSA modulus in bytes
+	private static final short AES_KEY_SIZE_BYTES = 16; // AES key size in bytes
+	private static RandomData cspRNG;
+
+
 	public static void install(byte[] bArray, short bOffset, byte bLength) {
 		new MainApplet(bArray, bOffset, bLength);
 	}
@@ -56,6 +69,12 @@ public class MainApplet extends Applet implements MultiSelectable {
 	protected MainApplet(byte[] bArray, short bOffset, byte bLength) {
 		//first initiate in state_applet_uploaded
 		stateModel = new StateModel(StateModel.STATE_APPLET_UPLOADED);
+
+		//Secure channel stuff
+		aesKey = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_128, false);
+		// generateRandomAESKey(aesKey);
+		rsaCipher = Cipher.getInstance(Cipher.ALG_RSA_PKCS1, false);
+
 
 		secretValues = new SecretStore[MAX_SECRET_COUNT];
 		secretStatus = new byte[MAX_SECRET_COUNT];
@@ -91,6 +110,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 		// stateModel.setSecondaryState(StateModel.SECURE_CHANNEL_ESTABLISHED);
 		stateModel.changeState(StateModel.STATE_GENERATE_KEYPAIR);
 		stateModel.changeState(StateModel.STATE_UNPRIVILEGED);
+		// change to new state - STATE_WAIT_SC_INIT, only INIT request with Kpub can be processed
 
 		register();
 	}
@@ -106,6 +126,10 @@ public class MainApplet extends Applet implements MultiSelectable {
 		byte ins = apduBuffer[ISO7816.OFFSET_INS];
 
 		switch (ins) {
+			case INS_SC_INIT:
+				// stateModel.checkAllowedFunction(StateModel.FNC_InitSecureChannel);
+				initSecureChannel(apdu);
+				break;
 			case INS_LIST_SECRETS:
 				// Check if the function is allowed in the current state
 				stateModel.checkAllowedFunction(StateModel.FNC_lookupSecretNames);
@@ -131,6 +155,39 @@ public class MainApplet extends Applet implements MultiSelectable {
 			default:
 				ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
 		}
+	}
+
+	private void initSecureChannel(APDU apdu) {
+		byte[] apduBuffer = apdu.getBuffer();
+		short dataLength = apdu.setIncomingAndReceive();
+
+		// Check if incoming data length is correct (should be the size of RSA modulus)
+		if (dataLength != RSA_MODULUS_LENGTH) {
+			ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+		}
+
+		// Get the RSA public key modulus from the APDU buffer
+		RSAPublicKey rsaPublicKey = (RSAPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_RSA_PUBLIC, RSA_MODULUS_LENGTH, false);
+		rsaPublicKey.setModulus(apduBuffer, ISO7816.OFFSET_CDATA, dataLength);
+
+		// Generate AES key
+		byte[] aesKeyBytes = new byte[AES_KEY_SIZE_BYTES];
+		doGenerateRandom(aesKeyBytes, (short) 0, AES_KEY_SIZE_BYTES);
+		aesKey.setKey(aesKeyBytes, (short) 0);
+
+		// Encrypt AES key using RSA public key
+		rsaCipher.init(rsaPublicKey, Cipher.MODE_ENCRYPT);
+		short cipherLength = rsaCipher.doFinal(aesKeyBytes, (short) 0, AES_KEY_SIZE_BYTES, apduBuffer, (short) 0);
+
+		// Send encrypted AES key as response
+		apdu.setOutgoing();
+		apdu.setOutgoingLength(cipherLength);
+		apdu.sendBytesLong(apduBuffer, (short) 0, cipherLength);
+	}
+
+
+	static void doGenerateRandom(byte[] buffer, short offset, short length) {
+		cspRNG.generateData(buffer, offset, length);
 	}
 
 	private void listSecrets(APDU apdu) {
@@ -222,16 +279,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 		Util.setShort(buffer, (short) 0, currentState);
 		apdu.setOutgoingAndSend((short) 0, (short) 2); // Assuming state is represented by a short (2 bytes)
 	}
-/*
-	private void verifyPIN(APDU apdu) {
-		byte[] apduBuffer = apdu.getBuffer();
-		byte len = (byte) secureChannel.preprocessAPDU(apduBuffer);
 
-		if (!pin.check(apduBuffer, ISO7816.OFFSET_CDATA, len)) {
-			ISOException.throwIt((short)((short) 0x63c0 | (short) pin.getTriesRemaining()));
-		}
-	}
-*/
 	// Method to verify PIN
 	private byte verifyPIN(APDU apdu, short startInter, short endInter) {
 

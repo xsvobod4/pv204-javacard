@@ -9,14 +9,19 @@ import main.utils.ApduFactory;
 import main.utils.TypeConverter;
 import main.utils.constants.InstructionConstants;
 
+import javax.crypto.Cipher;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 import javax.smartcardio.TerminalFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 
 public class TestingClientApp {
 
 
-    public static void main(String[] args){
+    public static void main(String[] args) throws Exception {
         // 1. create simulator
         CardSimulator simulator = new CardSimulator();
 
@@ -35,6 +40,8 @@ public class TestingClientApp {
         System.out.println("List secrets:");
         System.out.println("Data length:" + responseList.getData().length);
         System.out.println(new String(responseList.getData()));
+
+        /*
 
 
         byte[] DEFAULT_PIN = new byte[]{0x01, 0x02, 0x03, 0x04};
@@ -78,8 +85,42 @@ public class TestingClientApp {
         System.out.println("Change PIN:");
         System.out.println("Rtr: " + (short) responseChangePIN.getSW());
         System.out.println("0x9000: " + (short) 0x9000);
+
+        */
+        /////////////////////////////////////////////////////// secure channel test:
+
+
+        KeyPair keyPair = generateRSAKeyPair();
+        PublicKey publicKey = keyPair.getPublic();
+        byte[] publicKeyBytes = publicKey.getEncoded();
+
+        CommandAPDU commandAPDUSCInnit = ApduFactory.genericApdu(
+                (byte) 0x00, // CLA
+                (byte) InstructionConstants.INS_SC_INIT, // INS_GET_SECRET_VALUE
+                (byte) 0x00, // P1
+                (byte) 0x00, // P2
+                publicKeyBytes         // Data
+        );
+        ResponseAPDU responseAPDUSCInnit = simulator.transmitCommand(commandAPDUSCInnit);
+
+        byte[] decryptedData = decryptWithPrivateKey(responseAPDUSCInnit.getData(), keyPair.getPrivate());
+        System.out.println("Decrypted KEY length: " + decryptedData.length);
+        System.out.println("Decrypted KEY: " + new String(decryptedData));
+
     }
 
+
+    private static KeyPair generateRSAKeyPair() throws Exception {
+        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+        keyPairGenerator.initialize(2048);
+        return keyPairGenerator.generateKeyPair();
+    }
+
+    private static byte[] decryptWithPrivateKey(byte[] data, PrivateKey privateKey) throws Exception {
+        Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+        cipher.init(Cipher.DECRYPT_MODE, privateKey);
+        return cipher.doFinal(data);
+    }
 
 }
 
