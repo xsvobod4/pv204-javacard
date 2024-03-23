@@ -10,6 +10,7 @@ import main.utils.TypeConverter;
 import main.utils.constants.InstructionConstants;
 
 import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
@@ -125,12 +126,24 @@ public class TestingClientApp {
         // Transmit the encrypted APDU
         ResponseAPDU responseList3 = simulator.transmitCommand(encryptedCommandAPDU);
         // Decrypt the response data
+
+
+        // Initialize the IV - hardcoded
+        byte[] ivBytes = {108, 85, 68, 121, 122, -111, 17, 93, -61, 51, 14, -67, 0, 56, 81, -46 };
+        IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);
+
+        // Initialize the Cipher for decryption
+//        Cipher cipher2 = Cipher.getInstance("AES/CBC/PKCS5Padding");
+//        cipher2.init(Cipher.DECRYPT_MODE, aesKey, ivSpec);
+
+        // Decrypt the data
+//        byte[] decryptedAPDUData = cipher2.doFinal(encryptedAPDUData);
+
         byte[] decryptedResponseData = cipher.doFinal(responseList3.getData());
         String decryptedResponse = new String(decryptedResponseData, StandardCharsets.UTF_8);        // Print the decrypted response
         System.out.println("List secrets:");
         System.out.println("Data length: " + decryptedResponseData.length);
         System.out.println(decryptedResponse);
-
     }
 }
 
