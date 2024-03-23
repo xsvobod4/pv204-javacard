@@ -93,18 +93,10 @@ public class TestingClientApp {
 */
         /////////////////////////////////////////////////////// secure channel test:
 
-        //////establish aes key
+        SecureChannel secureChannel = new SecureChannel();
+        RSAPublicKey rsaPublicKey = secureChannel.getRSAPublicKey();
+        byte[] modulusBytes = secureChannel.getRSAModulusAsBytes(rsaPublicKey);
 
-        KeyPair keyPair = generateRSAKeyPair();
-        PublicKey publicKey = keyPair.getPublic();
-        RSAPublicKey rsaPublicKey = (RSAPublicKey) publicKey;
-        byte[] modulusBytesWithSign = rsaPublicKey.getModulus().toByteArray();
-        byte[] modulusBytes;
-        if (modulusBytesWithSign[0] == 0) {
-            modulusBytes = Arrays.copyOfRange(modulusBytesWithSign, 1, modulusBytesWithSign.length);
-        } else {
-            modulusBytes = modulusBytesWithSign;
-        }
         CommandAPDU commandAPDUSCInnit = ApduFactory.genericApdu(
                 (byte) 0x00, // CLA
                 (byte) InstructionConstants.INS_SC_INIT, // INS_GET_SECRET_VALUE
@@ -114,10 +106,10 @@ public class TestingClientApp {
         );
         ResponseAPDU responseAPDUSCInnit = simulator.transmitCommand(commandAPDUSCInnit);
 
-        byte[] decryptedAESkey = decryptWithPrivateKey(responseAPDUSCInnit.getData(), keyPair.getPrivate());
-        SecretKeySpec aesKey = new SecretKeySpec(decryptedAESkey, "AES");
-        System.out.println("Decrypted KEY length: " + decryptedAESkey.length);
-        System.out.println("Decrypted KEY: " + new String(decryptedAESkey));
+        byte[] decryptedAESkey = secureChannel.decryptRSAWithPrivateKey(responseAPDUSCInnit.getData(), secureChannel.getRSAPrivateKey());
+		SecretKeySpec aesKey = new SecretKeySpec(decryptedAESkey, "AES");
+		System.out.println("Decrypted KEY length: " + decryptedAESkey.length);
+		System.out.println("Decrypted KEY: " + new String(decryptedAESkey));
 
         ////// use aes key with encryption
 
@@ -140,20 +132,6 @@ public class TestingClientApp {
         System.out.println(decryptedResponse);
 
     }
-
-
-    private static KeyPair generateRSAKeyPair() throws Exception {
-        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-        keyPairGenerator.initialize(1024);
-        return keyPairGenerator.generateKeyPair();
-    }
-
-    private static byte[] decryptWithPrivateKey(byte[] data, PrivateKey privateKey) throws Exception {
-        Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-        cipher.init(Cipher.DECRYPT_MODE, privateKey);
-        return cipher.doFinal(data);
-    }
-
 }
 
 

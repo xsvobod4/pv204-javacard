@@ -201,6 +201,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 		rsaPublicKey.setExponent(exponentBytes, (short) 0, (short) exponentBytes.length);
 		// Create a separate byte buffer to hold the encrypted data
 		byte[] encryptedBuffer = new byte[RSA_MODULUS_LENGTH]; // Assuming the size of RSA modulus is the maximum size of encrypted data
+
 		// Encrypt AES key using RSA public key
 		rsaCipher.init(rsaPublicKey, Cipher.MODE_ENCRYPT);
 		rsaCipher.doFinal(aesKeyBytes, (short) 0, (short) aesKeyBytes.length, encryptedBuffer, (short) 0);
