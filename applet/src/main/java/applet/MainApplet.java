@@ -248,8 +248,15 @@ public class MainApplet extends Applet implements MultiSelectable {
 		if (verifyPIN(apdu,PIN_DEFAULT_OFFSETS[0], PIN_DEFAULT_OFFSETS[1]) != RTR_PIN_SUCCESS)
 			ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
 
-		stateModel.changeState(StateModel.STATE_PRIVILEGED);
-		pin.update(apduBuffer, PIN_DEFAULT_OFFSETS[2], PIN_LENGTH);
+		//stateModel.changeState(StateModel.STATE_PRIVILEGED);
+
+		try {
+			pin.update(apduBuffer, PIN_DEFAULT_OFFSETS[2], PIN_LENGTH);
+		} catch (PINException e) {
+			ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+		}
+
+		//stateModel.changeState(StateModel.STATE_UNPRIVILEGED);
 
 //		stateModel.changeState(StateModel.STATE_UNPRIVILEGED);
 		ISOException.throwIt(ISO7816.SW_NO_ERROR);

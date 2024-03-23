@@ -1,10 +1,12 @@
 package main;
 
+import javacard.framework.ISO7816;
 import main.cardinterface.ICard;
 import main.cardinterface.RealCard;
 import main.cardinterface.SimulatedCard;
 import main.utils.InputParser;
 import main.utils.constants.CardSettings;
+import main.utils.constants.IndexMapper;
 import main.utils.constants.ReturnMsgConstants;
 import main.utils.enums.CardType;
 
@@ -43,7 +45,7 @@ public class ClientApp {
                 throw new RuntimeException("Failed to connect to the card. Try different terminal: " + e.getMessage());
             }
         } else {
-            throw new IllegalArgumentException("Invalid card type: " + inputParser.getCardType());
+           return;
         }
 
         //Execute the instruction
@@ -73,7 +75,7 @@ public class ClientApp {
         //Simply prints the secret names onto the screen. Can be used for piping.
         for (short i = (short) 0; i < secretNames.length; i++) {
             if (secretNames[i] == ReturnMsgConstants.SECRET_FILLED) {
-                System.out.println(i);
+                System.out.println(i + " " + IndexMapper.INDEX_TO_NAME.get((byte)i));
             }
         }
     }

@@ -142,11 +142,12 @@ public class RealCard implements ICard {
      * @throws CardException Failed to select the applet
      */
     private void select() throws CardException {
+
         CommandAPDU commandAPDU = ApduFactory.selectAppletApdu(aid);
         ResponseAPDU responseAPDU = channel.transmit(commandAPDU);
 
         if ((short) responseAPDU.getSW() != ISO7816.SW_NO_ERROR) {
-            throw new CardRuntimeException("Failed to select applet. Card code: " + responseAPDU.getSW());
+            throw new CardRuntimeException("Failed to select applet. Card code: " + (short) responseAPDU.getSW());
         }
     }
 }

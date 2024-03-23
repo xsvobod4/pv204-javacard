@@ -1,5 +1,6 @@
 package main.utils;
 
+import javacard.framework.ISO7816;
 import main.exceptions.DataLengthException;
 import main.utils.constants.ClassConstants;
 import main.utils.constants.InstructionConstants;
@@ -122,8 +123,9 @@ public class ApduFactory {
         return genericApdu(
                 ClassConstants.CLA_BASIC,
                 InstructionConstants.INS_SELECT,
-                OffsetConstants.OFFSET_NULL,
+                OffsetConstants.OFFSET_SELECT,
                 OffsetConstants.OFFSET_NULL,
                 TypeConverter.hexStringToByteArray(appletAID));
     }
+
 }
