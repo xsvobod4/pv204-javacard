@@ -9,11 +9,6 @@ public class MainApplet extends Applet implements MultiSelectable {
 	/**
 	 * TODO: fix state model (secondary state check) - teď zakomentován, protože neprošlo nic
 	 *
-	 * TODO: implement PIN (object ownerPIN), jeho ověření, změnu...
-	 *
-	 * TODO: better store of secrets
-	 *
-	 * TODO: ClientApp - lepší posílání APDUs apod
 	 * */
 
 	private static final byte INS_LIST_SECRETS = (byte) 0xD7;
@@ -56,9 +51,8 @@ public class MainApplet extends Applet implements MultiSelectable {
 	private Cipher rsaCipher;
 	private static final short RSA_MODULUS_LENGTH = 128; // Length of RSA modulus in bytes
 	private static final short AES_KEY_SIZE_BYTES = 16; // AES key size in bytes
-	private byte[] exponentBytes = {0x01, 0x00, 0x01};
+	private final byte[] exponentBytes = {0x01, 0x00, 0x01};
 	private RandomData rng;
-	private static final short EEPROM_OFFSET_AES_KEY = (short) 0x1000; // Adjust as needed
 
 
 	public static void install(byte[] bArray, short bOffset, byte bLength) {
@@ -122,7 +116,6 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 		byte[] apduBuffer = apdu.getBuffer();
 		// short dataLength = apdu.setIncomingAndReceive();
-
 		byte ins = apduBuffer[ISO7816.OFFSET_INS];
 
 		// not so nice, would be better to check based on state
@@ -242,11 +235,36 @@ public class MainApplet extends Applet implements MultiSelectable {
 		}
 	}
 
+	private byte[] encryptAPDU(byte[] data, short offset, short length) {
+		try {
+			// Create AES cipher instance for encryption
+			Cipher aesCipher = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_CBC_NOPAD, false);
+
+			// Initialize AES cipher with the AES key and IV
+			aesCipher.init(aesKey, Cipher.MODE_ENCRYPT);
+
+			// Create buffer for encrypted data
+			byte[] encryptedData = new byte[length];
+
+			// Encrypt the data
+			aesCipher.doFinal(data, offset, length, encryptedData, (short) 0);
+
+			return encryptedData;
+		} catch (CryptoException e) {
+			// Handle encryption error
+			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+			return null; // This line is unreachable but required to compile
+		}
+	}
+
 	private void listSecrets(APDU apdu) {
+		// Encrypt the secret status data before sending
+		byte[] encryptedData = encryptAPDU(secretStatus, (short) 0, MAX_SECRET_COUNT);
+
 		// Send response
 		apdu.setOutgoing();
 		apdu.setOutgoingLength(MAX_SECRET_COUNT);
-		apdu.sendBytesLong(secretStatus, (short) 0, MAX_SECRET_COUNT);
+		apdu.sendBytesLong(encryptedData, (short) 0, MAX_SECRET_COUNT);
 	}
 
 	public boolean select(boolean b) {
@@ -258,7 +276,8 @@ public class MainApplet extends Applet implements MultiSelectable {
 		if (stateModel.getState() != StateModel.STATE_APPLET_UPLOADED) {
 			stateModel.changeState(StateModel.STATE_UNPRIVILEGED);
 		}
-
+		// clear key?
+		aesKey.clearKey();
 	}
 
 	//TODO: Add value to the SecretStore array and set the secret (at the same index) to filled status
@@ -318,11 +337,16 @@ public class MainApplet extends Applet implements MultiSelectable {
 			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
 		}
 
-		short secretLength = secretValues[queryKey].getLength();
+		byte[] encryptedSecretValue = encryptAPDU(secretValues[queryKey].secretValue, (short) 0, secretValues[queryKey].getLength());
+
+		if (encryptedSecretValue == null) {
+			// Handle the case where encryption failed
+			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+		}
 
 		apdu.setOutgoing();
-		apdu.setOutgoingLength(secretLength);
-		apdu.sendBytesLong(secretValues[queryKey].secretValue, (short) 0, secretLength);
+		apdu.setOutgoingLength( (short) encryptedSecretValue.length);
+		apdu.sendBytesLong(encryptedSecretValue , (short) 0, (short) encryptedSecretValue.length);
 	}
 
 	private void sendState(APDU apdu) {
