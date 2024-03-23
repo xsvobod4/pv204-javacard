@@ -219,7 +219,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 	private void decryptAPDU(byte[] apduBuffer) {
 		try {
 			// Create AES cipher instance for decryption
-			Cipher aesCipher = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_CBC_NOPAD, false);
+			Cipher aesCipher = Cipher.getInstance(Cipher.ALG_AES_CBC_PKCS5, false);
 
 			// Initialize AES cipher with the AES key and IV
 			aesCipher.init(aesKey, Cipher.MODE_DECRYPT, apduBuffer, ISO7816.OFFSET_CDATA, (short) 16);
@@ -238,7 +238,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 	private byte[] encryptAPDU(byte[] data, short offset, short length) {
 		try {
 			// Create AES cipher instance for encryption
-			Cipher aesCipher = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_CBC_NOPAD, false);
+			Cipher aesCipher = Cipher.getInstance(Cipher.ALG_AES_CBC_PKCS5, false);
 
 			// Initialize AES cipher with the AES key and IV
 			aesCipher.init(aesKey, Cipher.MODE_ENCRYPT);
