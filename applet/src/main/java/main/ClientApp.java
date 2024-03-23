@@ -4,6 +4,7 @@ import javacard.framework.ISO7816;
 import main.cardinterface.ICard;
 import main.cardinterface.RealCard;
 import main.cardinterface.SimulatedCard;
+import main.exceptions.RevealSecretIndexException;
 import main.utils.InputParser;
 import main.utils.constants.CardSettings;
 import main.utils.constants.IndexMapper;
@@ -65,9 +66,13 @@ public class ClientApp {
     }
 
     private static void revealSecret(String pin, Byte key, ICard card) {
-        String secret = card.revealSecret(pin, key);
-        //Simply prints the secret onto the screen. Can be used for piping.
-        System.out.println(secret);
+        try {
+            String secret = card.revealSecret(pin, key);
+            //Simply prints the secret onto the screen. Can be used for piping.
+            System.out.println(secret);
+        } catch (RevealSecretIndexException e) {
+            System.out.println("Secret not found at this key/index");
+        }
     }
 
     private static void getSecretNames(ICard card) {
@@ -75,7 +80,7 @@ public class ClientApp {
         //Simply prints the secret names onto the screen. Can be used for piping.
         for (short i = (short) 0; i < secretNames.length; i++) {
             if (secretNames[i] == ReturnMsgConstants.SECRET_FILLED) {
-                System.out.println(i + " " + IndexMapper.INDEX_TO_NAME.get((byte)i));
+                System.out.println(i + "\t" + IndexMapper.INDEX_TO_NAME.get((byte)i));
             }
         }
     }

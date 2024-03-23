@@ -5,6 +5,7 @@ import javacard.framework.ISO7816;
 import jdk.nashorn.internal.ir.Terminal;
 import main.exceptions.CardRuntimeException;
 import main.exceptions.DataLengthException;
+import main.exceptions.RevealSecretIndexException;
 import main.exceptions.WrongPinException;
 import main.utils.ApduFactory;
 import main.utils.DataFormatProcessor;
@@ -92,6 +93,10 @@ public class RealCard implements ICard {
             select();
             CommandAPDU commandAPDU = ApduFactory.revealSecretApdu(pin, key);
             ResponseAPDU responseAPDU = channel.transmit(commandAPDU);
+
+            if ((short) responseAPDU.getSW() == ISO7816.SW_DATA_INVALID) {
+                throw new RevealSecretIndexException("No secret at this key/index.");
+            }
 
             if ((short) responseAPDU.getSW() == ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED) {
                 throw new WrongPinException("Wrong PIN.");
