@@ -49,6 +49,8 @@ public class MainApplet extends Applet implements MultiSelectable {
 	//stuff connected with secure channel
 	private AESKey aesKey;
 	private Cipher rsaCipher;
+	private Cipher aesCipherEnc;
+	private Cipher aesCipherDec;
 	private static final short RSA_MODULUS_LENGTH = 128; // Length of RSA modulus in bytes
 	private static final short AES_KEY_SIZE_BYTES = 16; // AES key size in bytes
 	private final byte[] exponentBytes = {0x01, 0x00, 0x01};
@@ -124,25 +126,20 @@ public class MainApplet extends Applet implements MultiSelectable {
 		//if key is empty and INS =/= ISN_INIT_SC -> throw exception
 		//if key is not empty and INS is ISN_INIT_SC -> proceed to switch, it is ok
 		//if key not empty and ins is not ISN_INIT_SC: decrypt whole apdu buffer and proceeds to switch
-		boolean isKeyEmpty = false; // Flag to indicate if the key is empty
-		try {
-			byte[] keyData = new byte[AES_KEY_SIZE_BYTES];
-			aesKey.getKey(keyData, (short) 0);
-
-			// If no exception occurs, the key is not empty
-			isKeyEmpty = false;
-
-			if (ins != INS_SC_INIT) {
-				decryptAPDU(apduBuffer);
-			}
-		} catch (CryptoException e) {
-			// Handle the case where the key data has not been successfully initialized
-			isKeyEmpty = true;
-
-			if (ins != INS_SC_INIT) {
-				ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
-			}
-		}
+//		try {
+//			byte[] keyData = new byte[AES_KEY_SIZE_BYTES];
+//			aesKey.getKey(keyData, (short) 0);
+//
+//			if (ins != INS_SC_INIT) {
+//				decryptAPDU(apduBuffer);
+//			}
+//		} catch (CryptoException e) {
+//			// Handle the case where the key data has not been successfully initialized
+//
+//			if (ins != INS_SC_INIT) {
+//				ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+//			}
+//		}
 
 
 
@@ -154,7 +151,8 @@ public class MainApplet extends Applet implements MultiSelectable {
 				break;
 			case INS_LIST_SECRETS:
 				// Check if the function is allowed in the current state
-				stateModel.checkAllowedFunction(StateModel.FNC_lookupSecretNames);
+				// stateModel.checkAllowedFunction(StateModel.FNC_lookupSecretNames);
+				decryptAPDU(apduBuffer);
 				listSecrets(apdu);
 				break;
 			case INS_GET_SECRET_VALUE:
@@ -220,52 +218,55 @@ public class MainApplet extends Applet implements MultiSelectable {
 	private void decryptAPDU(byte[] apduBuffer) {
 		try {
 			// Create AES cipher instance for decryption
-			Cipher aesCipher = Cipher.getInstance(Cipher.ALG_AES_CBC_PKCS5, false);
+			aesCipherDec = Cipher.getInstance(Cipher.ALG_AES_ECB_PKCS5, false);
+			// Initialize AES cipher with the AES key
+			aesCipherDec.init(aesKey, Cipher.MODE_DECRYPT);
 
-			// Initialize AES cipher with the AES key and IV
-			aesCipher.init(aesKey, Cipher.MODE_DECRYPT, apduBuffer, ISO7816.OFFSET_CDATA, (short) 16);
+			// Determine the length of the encrypted data (excluding the header)
+			short encryptedDataLength = (short) (apduBuffer.length - ISO7816.OFFSET_CDATA);
 
-			// Decrypt the APDU buffer in-place
-			aesCipher.doFinal(apduBuffer, ISO7816.OFFSET_CDATA, (short) (apduBuffer[ISO7816.OFFSET_LC] & 0xFF), apduBuffer, ISO7816.OFFSET_CDATA);
+			// Decrypt the encrypted data in the APDU buffer
+			aesCipherDec.doFinal(apduBuffer, ISO7816.OFFSET_CDATA, encryptedDataLength, apduBuffer, ISO7816.OFFSET_CDATA);
 
 			// Update the Lc field in the APDU header
-			apduBuffer[ISO7816.OFFSET_LC] = (byte) (apduBuffer[ISO7816.OFFSET_LC] - 16);
+			apduBuffer[ISO7816.OFFSET_LC] = (byte) (apduBuffer[ISO7816.OFFSET_LC] - encryptedDataLength);
 		} catch (CryptoException e) {
 			// Handle decryption error
 			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
 		}
 	}
 
-	private byte[] encryptAPDU(byte[] data, short offset, short length) {
+	private void encryptAPDU(byte[] apduBuffer) {
 		try {
 			// Create AES cipher instance for encryption
-			Cipher aesCipher = Cipher.getInstance(Cipher.ALG_AES_CBC_PKCS5, false);
+			aesCipherEnc = Cipher.getInstance(Cipher.ALG_AES_ECB_PKCS5, false);
 
-			// Initialize AES cipher with the AES key and IV
-			aesCipher.init(aesKey, Cipher.MODE_ENCRYPT);
+			// Initialize AES cipher with the AES key
+			aesCipherEnc.init(aesKey, Cipher.MODE_ENCRYPT);
 
-			// Create buffer for encrypted data
-			byte[] encryptedData = new byte[length];
+			// Get the data length
+			short dataLength = (short) (apduBuffer[ISO7816.OFFSET_LC] & 0xFF);
 
-			// Encrypt the data
-			aesCipher.doFinal(data, offset, length, encryptedData, (short) 0);
+			// Encrypt the data in the APDU buffer
+			aesCipherEnc.doFinal(apduBuffer, ISO7816.OFFSET_CDATA, dataLength, apduBuffer, ISO7816.OFFSET_CDATA);
 
-			return encryptedData;
+			// Update the Lc field in the APDU header if needed
+			// Note: PKCS5 padding is used, so the encrypted data length will be a multiple of the block size (16 bytes for AES)
+			// Therefore, no update is needed for Lc field in the APDU header
 		} catch (CryptoException e) {
 			// Handle encryption error
 			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
-			return null; // This line is unreachable but required to compile
 		}
 	}
 
 	private void listSecrets(APDU apdu) {
 		// Encrypt the secret status data before sending
-		byte[] encryptedData = encryptAPDU(secretStatus, (short) 0, MAX_SECRET_COUNT);
+		encryptAPDU(secretStatus);
 
 		// Send response
 		apdu.setOutgoing();
 		apdu.setOutgoingLength(MAX_SECRET_COUNT);
-		apdu.sendBytesLong(encryptedData, (short) 0, MAX_SECRET_COUNT);
+		apdu.sendBytesLong(secretStatus, (short) 0, MAX_SECRET_COUNT);
 	}
 
 	public boolean select(boolean b) {
@@ -338,16 +339,16 @@ public class MainApplet extends Applet implements MultiSelectable {
 			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
 		}
 
-		byte[] encryptedSecretValue = encryptAPDU(secretValues[queryKey].secretValue, (short) 0, secretValues[queryKey].getLength());
+		 byte[] SecretValue = secretValues[queryKey].secretValue;
 
-		if (encryptedSecretValue == null) {
+		if (SecretValue == null) {
 			// Handle the case where encryption failed
 			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
 		}
 
 		apdu.setOutgoing();
-		apdu.setOutgoingLength( (short) encryptedSecretValue.length);
-		apdu.sendBytesLong(encryptedSecretValue , (short) 0, (short) encryptedSecretValue.length);
+		apdu.setOutgoingLength( (short) SecretValue.length);
+		apdu.sendBytesLong(SecretValue , (short) 0, (short) SecretValue.length);
 	}
 
 	private void sendState(APDU apdu) {
