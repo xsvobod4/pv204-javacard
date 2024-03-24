@@ -114,32 +114,45 @@ public class TestingClientApp {
 
         ////// use aes key with encryption
 
-        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-        cipher.init(Cipher.ENCRYPT_MODE, aesKey);
+//        [108, 85, 68, 121, 122, -111, 17, 93, -61, 51, 14, -67, 0, 56, 81, -46]
+//        Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
+//        cipher.init(Cipher.ENCRYPT_MODE, aesKey);
 
-        CommandAPDU commandAPDUList3 = new CommandAPDU(0x00, InstructionConstants.INS_GET_SECRET_NAMES, 0x00, 0x00);
-        byte[] apduData = commandAPDUList3.getData();
+//        CommandAPDU commandAPDUList3 = new CommandAPDU(0x00, InstructionConstants.INS_GET_SECRET_NAMES, 0x00, 0x00);
+//        byte[] apduData = commandAPDUList3.getData();
+
         // Encrypt the payload data
-        byte[] encryptedAPDUData = cipher.doFinal(apduData);
+
+        byte[] DEFAULT_PIN = new byte[]{0x01, 0x02, 0x03, 0x04};
+        byte secretName = (byte) 0x01;
+
+
+
+
+        //        byte[] encryptedAPDUData = cipher.doFinal(apduData);
+        byte[] encryptedPIN = secureChannel.encryptAESWithKey(aesKey, DEFAULT_PIN);
+
+
         // Create a new CommandAPDU with the encrypted payload data
-        CommandAPDU encryptedCommandAPDU = new CommandAPDU(0x00, InstructionConstants.INS_GET_SECRET_NAMES, 0x00, 0x00, encryptedAPDUData);
+        CommandAPDU encryptedCommandAPDU = ApduFactory.genericApdu(
+                (byte) 0x00, // CLA
+                (byte) InstructionConstants.INS_REVEAL_SECRET, // INS_GET_SECRET_VALUE
+                secretName, // P1
+                (byte) 0x00, // P2
+                DEFAULT_PIN         // Data
+        );
+
+//        CommandAPDU encryptedCommandAPDU = new CommandAPDU(0x00, InstructionConstants.INS_VERIFY_PIN, 0x00, 0x00, encryptedPIN);
         // Transmit the encrypted APDU
         ResponseAPDU responseList3 = simulator.transmitCommand(encryptedCommandAPDU);
         // Decrypt the response data
 
-
-        // Initialize the IV - hardcoded
-        byte[] ivBytes = {108, 85, 68, 121, 122, -111, 17, 93, -61, 51, 14, -67, 0, 56, 81, -46 };
-        IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);
-
         // Initialize the Cipher for decryption
-//        Cipher cipher2 = Cipher.getInstance("AES/CBC/PKCS5Padding");
-//        cipher2.init(Cipher.DECRYPT_MODE, aesKey, ivSpec);
+
 
         // Decrypt the data
-//        byte[] decryptedAPDUData = cipher2.doFinal(encryptedAPDUData);
-
-        byte[] decryptedResponseData = cipher.doFinal(responseList3.getData());
+//        byte[] decryptedResponseData = cipher.doFinal(responseList3.getData());
+        byte[] decryptedResponseData = secureChannel.decryptAESWithKey(aesKey, responseList3.getData());
         String decryptedResponse = new String(decryptedResponseData, StandardCharsets.UTF_8);        // Print the decrypted response
         System.out.println("List secrets:");
         System.out.println("Data length: " + decryptedResponseData.length);
