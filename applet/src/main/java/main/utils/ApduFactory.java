@@ -165,5 +165,4 @@ public class ApduFactory {
                 OffsetConstants.OFFSET_NULL,
                 TypeConverter.hexStringToByteArray(appletAID));
     }
-
 }
