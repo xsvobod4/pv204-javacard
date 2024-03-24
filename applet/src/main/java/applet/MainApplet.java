@@ -195,6 +195,8 @@ public class MainApplet extends Applet implements MultiSelectable {
 		doGenerateRandom(aesKeyBytes, (short) 0, AES_KEY_SIZE_BYTES);
 		aesKey.setKey(aesKeyBytes, (short) 0);
 
+		// AESKey aesKey = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_128, false);
+
 		// Exponent value 65537
 		rsaPublicKey.setExponent(exponentBytes, (short) 0, (short) exponentBytes.length);
 		// Create a separate byte buffer to hold the encrypted data
@@ -217,19 +219,20 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 	private void decryptAPDU(byte[] apduBuffer) {
 		try {
-			// Create AES cipher instance for decryption
-			aesCipherDec = Cipher.getInstance(Cipher.ALG_AES_ECB_PKCS5, false);
+			// Initialize AES cipher for decryption
+			Cipher aesCipherDec = Cipher.getInstance(Cipher.ALG_AES_ECB_PKCS5, false);
+
 			// Initialize AES cipher with the AES key
 			aesCipherDec.init(aesKey, Cipher.MODE_DECRYPT);
 
-			// Determine the length of the encrypted data (excluding the header)
-			short encryptedDataLength = (short) (apduBuffer.length - ISO7816.OFFSET_CDATA);
+			// Get the data length (excluding header)
+			short dataLength = (short) (apduBuffer[ISO7816.OFFSET_LC] & 0xFF);
 
-			// Decrypt the encrypted data in the APDU buffer
-			aesCipherDec.doFinal(apduBuffer, ISO7816.OFFSET_CDATA, encryptedDataLength, apduBuffer, ISO7816.OFFSET_CDATA);
+			// Decrypt the APDU buffer (excluding header)
+			aesCipherDec.doFinal(apduBuffer, ISO7816.OFFSET_CDATA, dataLength, apduBuffer, ISO7816.OFFSET_CDATA);
 
-			// Update the Lc field in the APDU header
-			apduBuffer[ISO7816.OFFSET_LC] = (byte) (apduBuffer[ISO7816.OFFSET_LC] - encryptedDataLength);
+			// Update the Lc field in the APDU header if needed
+			apduBuffer[ISO7816.OFFSET_LC] = (byte) (apduBuffer[ISO7816.OFFSET_LC] - 16);
 		} catch (CryptoException e) {
 			// Handle decryption error
 			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
