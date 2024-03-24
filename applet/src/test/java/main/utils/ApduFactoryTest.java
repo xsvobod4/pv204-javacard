@@ -47,7 +47,7 @@ public class ApduFactoryTest {
         CommandAPDU commandAPDU = ApduFactory.selectAppletApdu("1234");
         assertEquals(ClassConstants.CLA_BASIC, commandAPDU.getCLA());
         assertEquals(InstructionConstants.INS_SELECT, commandAPDU.getINS());
-        assertEquals(OffsetConstants.OFFSET_NULL, commandAPDU.getP1());
+        assertEquals(OffsetConstants.OFFSET_SELECT, commandAPDU.getP1());
         assertEquals(OffsetConstants.OFFSET_NULL, commandAPDU.getP2());
         assertArrayEquals(TypeConverter.hexStringToByteArray("1234"), commandAPDU.getData());
     }
