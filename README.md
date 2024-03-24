@@ -41,7 +41,7 @@ git clone --recursive git@github.com:xsvobod4/pv204-javacard.git
 ### Build
 - build CAP, JAR file and run tests with:
 ```bash
-./gradlew build
+./gradlew buildJavaCard --info --rerun-tasks
 ```
 
 
@@ -83,7 +83,7 @@ Instructions:
 ### Running tests
 
 ```
-./gradlew test --info --rerun-tasks
+./gradlew clean build
 ```
 
 ### Supported Java versions
