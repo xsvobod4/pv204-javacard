@@ -132,23 +132,4 @@ public class ApduFactory {
      *
      * @return Built APDU
      */
-    public static CommandAPDU invalidAPDU() {
-        return genericApdu(
-                ClassConstants.CLA_BASIC,
-                InstructionConstants.INS_INVALID,
-                OffsetConstants.OFFSET_NULL,
-                OffsetConstants.OFFSET_NULL,
-                new byte[0]);
-    }
-
-    /**
-     * Creates Invalid APDU
-     *
-     * @return Built APDU
-     */
-    public static CommandAPDU invalidAPDU2() {
-        return genericApdu(
-                0xbc, 0x81, 0x15, 0xa6,
-                new byte[5]);
-    }
 }

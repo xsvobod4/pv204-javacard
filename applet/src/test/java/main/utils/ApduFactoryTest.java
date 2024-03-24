@@ -7,6 +7,7 @@ import org.junit.jupiter.api.*;
 
 import javax.smartcardio.CommandAPDU;
 
+import static main.utils.ApduFactory.genericApdu;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class ApduFactoryTest {
@@ -63,7 +64,13 @@ public class ApduFactoryTest {
 
     @Test
     public void testInvalidApdu() {
-        CommandAPDU commandAPDU = ApduFactory.invalidAPDU();
+        CommandAPDU commandAPDU = genericApdu(
+                ClassConstants.CLA_BASIC,
+                InstructionConstants.INS_INVALID,
+                OffsetConstants.OFFSET_NULL,
+                OffsetConstants.OFFSET_NULL,
+                new byte[0]);
+
         assertEquals(ClassConstants.CLA_BASIC, commandAPDU.getCLA());
         assertEquals(InstructionConstants.INS_INVALID, commandAPDU.getINS());
         assertEquals(OffsetConstants.OFFSET_NULL, commandAPDU.getP1());
@@ -73,7 +80,7 @@ public class ApduFactoryTest {
 
     @Test
     public void testInvalidApdu2() {
-        CommandAPDU commandAPDU = ApduFactory.invalidAPDU2();
+        CommandAPDU commandAPDU = genericApdu(0xbc, 0x81, 0x15, 0xa6, new byte[5]);
         assertArrayEquals(TypeConverter.stringIntToByteArray("00000"), commandAPDU.getData());
     }
 
