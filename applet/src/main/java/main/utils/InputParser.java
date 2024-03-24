@@ -1,9 +1,12 @@
 package main.utils;
 
 import main.utils.constants.IndexMapper;
+import main.utils.constants.OffsetConstants;
 import main.utils.enums.CardType;
 import main.utils.enums.Instruction;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
+
+import java.util.Objects;
 
 public class InputParser {
     private CardType cardType = null;
@@ -13,8 +16,11 @@ public class InputParser {
     private String pin = null;
     private String newPin = null;
     private Byte key = null;
+    private String value = null;
+    private Byte overwrite = OffsetConstants.OVERWRITE_DONT;
 
     private static final int PIN_LENGTH = ApduFactory.PIN_LENGTH;
+    private static final int SECRET_MAX_LENGTH = ApduFactory.SECRET_MAX_LENGTH;
     private static final int KEY_LENGTH = 15;
 
     /**
@@ -35,7 +41,7 @@ public class InputParser {
             return;
         }
 
-        while (i < args.length-1) {
+        while (i < args.length) {
             switch (args[i]) {
                 case "-c":
                 case "--card":
@@ -71,6 +77,16 @@ public class InputParser {
                     key = sanitizeKey(args[i + 1]);
                     i += 2;
                     break;
+                case "-v":
+                case "--value":
+                    value = sanitizeValue(args[i + 1]);
+                    i += 2;
+                    break;
+                case "-o":
+                case "--overwrite":
+                    overwrite = OffsetConstants.OVERWRITE_DO;
+                    i += 1;
+                    break;
                 default:
                     i++;
                     break;
@@ -86,12 +102,15 @@ public class InputParser {
     public void printHelp() {
         System.out.println("-----SECRET STORAGE CARD CLIENT-----");
         System.out.println("Usage:");
-        System.out.println("java -jar client.jar [-h | --help] -c <card type> [-t <terminal number>] -i <instruction> [instruction_options]");
+        System.out.println("./gradlew run --args=\"[-h | --help] -c <card type> [-t <terminal number>] -i <instruction> [instruction_options]\"");
+        System.out.println();
         System.out.println("Instruction options:");
         System.out.println("-p, --pin <pin>\tFour digit card PIN.");
         System.out.println("-n, --new_pin <pin>\tNew four digit PIN for PIN change.");
         System.out.printf("-k, --key <key>\tQuery data key. Should be a number 1-%d or the name of the slot.", KEY_LENGTH);
-
+        System.out.println("-v, --value <value>\tQuery data value of length <= \n" + SECRET_MAX_LENGTH);
+        System.out.println("-o, --overwrite\tOverwrite existing data on card.");
+        System.out.println();
         System.out.println("Card types:");
         System.out.println("sim\tSimulated card.");
         System.out.println("real\tReal card.");
@@ -99,6 +118,7 @@ public class InputParser {
         System.out.println("change_pin, cp\tPIN change.\tOptions: -p <old pin> -n <new pin>");
         System.out.println("get_secret_names, sn\tGet secret names.");
         System.out.println("reveal_secret, rs\tReveal secret.\tOptions: -p <pin> -k <key>");
+        System.out.println("set_secret, set\tSet secret.\tOptions: -p <pin> -k <key> -v <value> [-o]");
     }
 
     /**
@@ -137,6 +157,9 @@ public class InputParser {
             case "reveal_secret":
             case "rs":
                 return Instruction.REVEAL_SECRET;
+            case "set_secret":
+            case "set":
+                return Instruction.SET_SECRET;
             default:
                 printHelp();
                 throw new IllegalArgumentException("Invalid instruction: " + instruction);
@@ -167,6 +190,14 @@ public class InputParser {
         }
 
         return trimmedPin;
+    }
+
+    private String sanitizeValue(String value) {
+        if (value.length() > SECRET_MAX_LENGTH) {
+            throw new IllegalArgumentException("Value/secret is too long.");
+        }
+
+        return value;
     }
 
     /**
@@ -241,6 +272,18 @@ public class InputParser {
                     throw new IllegalStateException("Key is not set");
                 }
                 break;
+            case SET_SECRET:
+                //Setting secret requires PIN and key
+                if (pin == null) {
+                    throw new IllegalStateException("PIN is not set");
+                }
+                if (key == null) {
+                    throw new IllegalStateException("Key is not set");
+                }
+                if (value == null) {
+                    throw new IllegalStateException("Value is not set");
+                }
+                break;
             default:
                 throw new IllegalStateException("Unknown instruction");
         }
@@ -268,5 +311,13 @@ public class InputParser {
 
     public int getTerminalNumber() {
         return terminalNumber;
+    }
+
+    public String getValue() {
+        return value;
+    }
+
+    public Byte getOverwrite() {
+        return overwrite;
     }
 }

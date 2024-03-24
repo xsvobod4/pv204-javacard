@@ -1,10 +1,9 @@
 package main;
 
-import javacard.framework.ISO7816;
 import main.cardinterface.ICard;
 import main.cardinterface.RealCard;
 import main.cardinterface.SimulatedCard;
-import main.exceptions.RevealSecretIndexException;
+import main.exceptions.SecretIndexException;
 import main.utils.InputParser;
 import main.utils.constants.CardSettings;
 import main.utils.constants.IndexMapper;
@@ -12,13 +11,6 @@ import main.utils.constants.ReturnMsgConstants;
 import main.utils.enums.CardType;
 
 import javax.smartcardio.CardException;
-import java.util.ArrayList;
-
-import main.utils.ApduFactory;
-import main.utils.TypeConverter;
-
-import javax.smartcardio.CommandAPDU;
-import javax.smartcardio.ResponseAPDU;
 
 public class ClientApp {
 
@@ -60,6 +52,12 @@ public class ClientApp {
             case REVEAL_SECRET:
                 revealSecret(inputParser.getPin(), inputParser.getKey(), card);
                 break;
+            case SET_SECRET:
+                card.storeValue(inputParser.getKey(),
+                        inputParser.getValue(),
+                        inputParser.getPin(),
+                        inputParser.getOverwrite());
+                break;
             default:
                 throw new IllegalArgumentException("Invalid instruction: " + inputParser.getInstruction());
         }
@@ -70,7 +68,7 @@ public class ClientApp {
             String secret = card.revealSecret(pin, key);
             //Simply prints the secret onto the screen. Can be used for piping.
             System.out.println(secret);
-        } catch (RevealSecretIndexException e) {
+        } catch (SecretIndexException e) {
             System.out.println("Secret not found at this key/index");
         }
     }

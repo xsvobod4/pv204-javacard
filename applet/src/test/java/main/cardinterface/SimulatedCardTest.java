@@ -3,12 +3,13 @@ package main.cardinterface;
 
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
-import main.exceptions.CardRuntimeException;
-import main.exceptions.DataLengthException;
+import main.exceptions.*;
 import main.utils.TypeConverter;
+import main.utils.constants.OffsetConstants;
 import main.utils.constants.ReturnMsgConstants;
 import org.junit.jupiter.api.*;
 
+import java.lang.invoke.WrongMethodTypeException;
 import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -33,7 +34,7 @@ public class SimulatedCardTest {
     @Test
     public void testGetSecretValueCorrect() {
         SimulatedCard simulatedCard = new SimulatedCard(aid);
-        String secretValue = "Value1";
+        String secretValue = "Secret1";
         String secret = simulatedCard.revealSecret("1234", (byte) 0x01);
         assertEquals(secretValue, secret);
     }
@@ -87,6 +88,54 @@ public class SimulatedCardTest {
         SimulatedCard simulatedCard = new SimulatedCard(aid);
         assertThrows(DataLengthException.class, () -> {
             simulatedCard.changePin("123565754", "432");
+        });
+    }
+
+    @Test
+    public void testSetSecretCorrect() {
+        SimulatedCard simulatedCard = new SimulatedCard(aid);
+        simulatedCard.storeValue((byte) 0x00, "SecretTest&&@", "1234", OffsetConstants.OVERWRITE_DONT);
+        String secret = simulatedCard.revealSecret("1234", (byte) 0x00);
+        assertEquals("SecretTest&&@", secret);
+    }
+
+    @Test
+    public void testSetSecretCorrect2() {
+        SimulatedCard simulatedCard = new SimulatedCard(aid);
+        simulatedCard.storeValue((byte) 0x0E, "SecretTestEnd```;nd", "1234", OffsetConstants.OVERWRITE_DONT);
+        String secret = simulatedCard.revealSecret("1234", (byte) 0x0E);
+        assertEquals("SecretTestEnd```;nd", secret);
+    }
+
+    @Test
+    public void testSecretOverwriteSuccess() {
+        SimulatedCard simulatedCard = new SimulatedCard(aid);
+        simulatedCard.storeValue((byte) 0x07, "SecretTestOver", "1234", OffsetConstants.OVERWRITE_DO);
+        String secret = simulatedCard.revealSecret("1234", (byte) 0x07);
+        assertEquals("SecretTestOver", secret);
+    }
+
+    @Test
+    public void testSecretOverwriteFail() {
+        SimulatedCard simulatedCard = new SimulatedCard(aid);
+        assertThrows(OverwriteException.class, () -> {
+            simulatedCard.storeValue((byte) 0x07, "SecretTestOver", "1234", OffsetConstants.OVERWRITE_DONT);
+        });
+    }
+
+    @Test
+    public void testSecretOutOfBounds() {
+        SimulatedCard simulatedCard = new SimulatedCard(aid);
+        assertThrows(SecretIndexException.class, () -> {
+            simulatedCard.storeValue((byte) 0x10, "SecretTestOver", "1234", OffsetConstants.OVERWRITE_DONT);
+        });
+    }
+
+    @Test
+    public void testWrongPinSetSecret() {
+        SimulatedCard simulatedCard = new SimulatedCard(aid);
+        assertThrows(WrongPinException.class, () -> {
+            simulatedCard.storeValue((byte) 0x04, "SecretTestOver", "7777", OffsetConstants.OVERWRITE_DONT);
         });
     }
 }
