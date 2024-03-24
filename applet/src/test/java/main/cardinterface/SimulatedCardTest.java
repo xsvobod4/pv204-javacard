@@ -1,8 +1,7 @@
 package main.cardinterface;
 
 
-import javacard.framework.ISO7816;
-import javacard.framework.ISOException;
+
 import main.exceptions.*;
 import main.utils.TypeConverter;
 import main.utils.constants.OffsetConstants;

@@ -107,7 +107,7 @@ public class InputParser {
         System.out.println("Instruction options:");
         System.out.println("-p, --pin <pin>\tFour digit card PIN.");
         System.out.println("-n, --new_pin <pin>\tNew four digit PIN for PIN change.");
-        System.out.printf("-k, --key <key>\tQuery data key. Should be a number 1-%d or the name of the slot.", KEY_LENGTH);
+        System.out.printf("-k, --key <key>\tQuery data key. Should be a number 1-%d or the name of the slot.\n", KEY_LENGTH);
         System.out.println("-v, --value <value>\tQuery data value of length <= \n" + SECRET_MAX_LENGTH);
         System.out.println("-o, --overwrite\tOverwrite existing data on card.");
         System.out.println();

@@ -144,7 +144,7 @@ javacard {
         //noinspection GroovyAssignabilityCheck
         cap {
             packageName 'applet'
-            version '0.2'
+            version '0.3'
             aid '01:ff:ff:04:05:06:07:08:10'
             output 'applet.cap'
 
