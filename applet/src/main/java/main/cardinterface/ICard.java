@@ -16,7 +16,7 @@ public interface ICard {
      * @param key Query key to be associated with the secret
      * @param value Secret value
      */
-    void storeValue(String key, String value);
+    void storeValue(Byte key, String value, String pin, Byte overwrite);
     /**
      * Get a list of secret names from the card.
      * Does not require a PIN.

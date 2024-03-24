@@ -144,8 +144,8 @@ javacard {
         //noinspection GroovyAssignabilityCheck
         cap {
             packageName 'applet'
-            version '0.1'
-            aid '01:ff:ff:04:05:06:07:08:09'
+            version '0.2'
+            aid '01:ff:ff:04:05:06:07:08:10'
             output 'applet.cap'
 
             dependencies {
@@ -164,7 +164,7 @@ javacard {
             //noinspection GroovyAssignabilityCheck
             applet {
                 className 'applet.MainApplet'
-                aid '01:ff:ff:04:05:06:07:08:09:01:02'
+                aid '01:ff:ff:04:05:06:07:08:10:01:02'
             }
 
             //noinspection GroovyAssignabilityCheck
