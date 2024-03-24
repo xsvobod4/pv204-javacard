@@ -3,19 +3,14 @@ package main;
 import main.cardinterface.ICard;
 import main.cardinterface.RealCard;
 import main.cardinterface.SimulatedCard;
+import main.exceptions.SecretIndexException;
 import main.utils.InputParser;
 import main.utils.constants.CardSettings;
+import main.utils.constants.IndexMapper;
 import main.utils.constants.ReturnMsgConstants;
 import main.utils.enums.CardType;
 
 import javax.smartcardio.CardException;
-import java.util.ArrayList;
-
-import main.utils.ApduFactory;
-import main.utils.TypeConverter;
-
-import javax.smartcardio.CommandAPDU;
-import javax.smartcardio.ResponseAPDU;
 
 public class ClientApp {
 
@@ -43,7 +38,7 @@ public class ClientApp {
                 throw new RuntimeException("Failed to connect to the card. Try different terminal: " + e.getMessage());
             }
         } else {
-            throw new IllegalArgumentException("Invalid card type: " + inputParser.getCardType());
+           return;
         }
 
         //Execute the instruction
@@ -57,15 +52,25 @@ public class ClientApp {
             case REVEAL_SECRET:
                 revealSecret(inputParser.getPin(), inputParser.getKey(), card);
                 break;
+            case SET_SECRET:
+                card.storeValue(inputParser.getKey(),
+                        inputParser.getValue(),
+                        inputParser.getPin(),
+                        inputParser.getOverwrite());
+                break;
             default:
                 throw new IllegalArgumentException("Invalid instruction: " + inputParser.getInstruction());
         }
     }
 
     private static void revealSecret(String pin, Byte key, ICard card) {
-        String secret = card.revealSecret(pin, key);
-        //Simply prints the secret onto the screen. Can be used for piping.
-        System.out.println(secret);
+        try {
+            String secret = card.revealSecret(pin, key);
+            //Simply prints the secret onto the screen. Can be used for piping.
+            System.out.println(secret);
+        } catch (SecretIndexException e) {
+            System.out.println("Secret not found at this key/index");
+        }
     }
 
     private static void getSecretNames(ICard card) {
@@ -73,7 +78,7 @@ public class ClientApp {
         //Simply prints the secret names onto the screen. Can be used for piping.
         for (short i = (short) 0; i < secretNames.length; i++) {
             if (secretNames[i] == ReturnMsgConstants.SECRET_FILLED) {
-                System.out.println(i);
+                System.out.println(i + "\t" + IndexMapper.INDEX_TO_NAME.get((byte)i));
             }
         }
     }

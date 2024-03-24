@@ -1,5 +1,6 @@
 package main.utils;
 
+import main.utils.constants.OffsetConstants;
 import main.utils.enums.CardType;
 import main.utils.enums.Instruction;
 
@@ -13,6 +14,7 @@ public class InputParserTest {
         inputParser.parseArgs(new String[]{"-c", "real", "-t", "1", "-i", "get_secret_names"});
         assertEquals(CardType.REAL, inputParser.getCardType());
         assertEquals(1, inputParser.getTerminalNumber());
+        assertEquals(Instruction.GET_SECRET_NAMES, inputParser.getInstruction());
     }
 
     @Test
@@ -189,6 +191,60 @@ public class InputParserTest {
         InputParser inputParser = new InputParser();
         assertThrows(IllegalArgumentException.class, () -> {
             inputParser.parseArgs(new String[]{"-c", "real", "-i", "reveal_secret", "-p", "1234", "-k", "490000333"});
+        });
+    }
+
+    @Test
+    public void textCorrectSetSecret() {
+        InputParser inputParser = new InputParser();
+        inputParser.parseArgs(new String[]{"-c", "real", "-i", "set_secret", "-v", "1234ddcc@g", "-p", "1234", "-k", "7"});
+        assertEquals(CardType.REAL, inputParser.getCardType());
+        assertEquals(Instruction.SET_SECRET, inputParser.getInstruction());
+        assertEquals("1234ddcc@g", inputParser.getValue());
+        assertEquals("1234", inputParser.getPin());
+        assertEquals(OffsetConstants.OVERWRITE_DONT, inputParser.getOverwrite().byteValue());
+    }
+
+    @Test
+    public void textCorrectSetSecret2() {
+        InputParser inputParser = new InputParser();
+        inputParser.parseArgs(new String[]{"-c", "sim", "-i", "set", "-v", "123n9c18989r``/c_", "-k", "4", "-p", "1234", "-o"});
+        assertEquals(CardType.SIMULATED, inputParser.getCardType());
+        assertEquals(Instruction.SET_SECRET, inputParser.getInstruction());
+        assertEquals("123n9c18989r``/c_", inputParser.getValue());
+        assertEquals("1234", inputParser.getPin());
+        assertEquals(OffsetConstants.OVERWRITE_DO, inputParser.getOverwrite().byteValue());
+    }
+
+    @Test
+    public void textIncorrectSetSecret() {
+        InputParser inputParser = new InputParser();
+        assertThrows(IllegalStateException.class, () -> {
+            inputParser.parseArgs(new String[]{"-c", "real", "-i", "set_secret", "-v", "123n9c18989r``/c_"});
+        });
+    }
+
+    @Test
+    public void textIncorrectSetSecret2() {
+        InputParser inputParser = new InputParser();
+        assertThrows(IllegalStateException.class, () -> {
+            inputParser.parseArgs(new String[]{"-c", "real", "-i", "set_secret", "-v", "123n9c18989r``/c_", "--overwrite", "-k", "0"});
+        });
+    }
+
+    @Test
+    public void textIncorrectSetSecret3() {
+        InputParser inputParser = new InputParser();
+        assertThrows(IllegalStateException.class, () -> {
+            inputParser.parseArgs(new String[]{"-c", "sim", "-i", "set", "-p", "1234", "-o"});
+        });
+    }
+
+    @Test
+    public void textIncorrectSetSecret4() {
+        InputParser inputParser = new InputParser();
+        assertThrows(IllegalArgumentException.class, () -> {
+            inputParser.parseArgs(new String[]{"-c", "sim", "-i", "set", "-p", "1234", "-o", "-k", "99999", "-v", "123n9c18989r.../c_"});
         });
     }
 }

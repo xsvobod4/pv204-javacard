@@ -1,20 +1,12 @@
 package main.cardinterface;
 
-import javacard.framework.AID;
 import javacard.framework.ISO7816;
-import jdk.nashorn.internal.ir.Terminal;
-import main.exceptions.CardRuntimeException;
-import main.exceptions.DataLengthException;
-import main.exceptions.WrongPinException;
+import main.exceptions.*;
 import main.utils.ApduFactory;
-import main.utils.DataFormatProcessor;
-import main.utils.TypeConverter;
-import main.utils.constants.ReturnMsgConstants;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import javax.smartcardio.*;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 
 public class RealCard implements ICard {
@@ -59,8 +51,35 @@ public class RealCard implements ICard {
     }
 
     @Override
-    public void storeValue(String key, String value) {
-       throw new NotImplementedException();
+    public void storeValue(Byte key, String value, String pin, Byte overwrite) {
+        try {
+            select();
+            CommandAPDU commandAPDU = ApduFactory.setSecretApdu(key, overwrite, value, pin);
+            ResponseAPDU responseAPDU = channel.transmit(commandAPDU);
+
+            if ((short) responseAPDU.getSW() == ISO7816.SW_WRONG_LENGTH) {
+                throw new DataLengthException("Value is too long.");
+            }
+
+            if ((short) responseAPDU.getSW() == ISO7816.SW_CONDITIONS_NOT_SATISFIED) {
+                throw new OverwriteException("Secrect would be overwritten.");
+            }
+
+            if ((short) responseAPDU.getSW() == ISO7816.SW_INCORRECT_P1P2) {
+                throw new SecretIndexException("Secret index is out of bounds.");
+            }
+
+            if ((short) responseAPDU.getSW() == ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED) {
+                throw new WrongPinException("Wrong PIN.");
+            }
+
+            if ((short) responseAPDU.getSW() != ISO7816.SW_NO_ERROR) {
+                throw new CardRuntimeException("Failed to send pin. Card code: " + responseAPDU.getSW());
+            }
+        } catch (CardException e) {
+            throw new CardRuntimeException("Card connection problem. Failed to store value. Card code: " + e.getMessage());
+        }
+
     }
 
     @Override
@@ -92,6 +111,10 @@ public class RealCard implements ICard {
             select();
             CommandAPDU commandAPDU = ApduFactory.revealSecretApdu(pin, key);
             ResponseAPDU responseAPDU = channel.transmit(commandAPDU);
+
+            if ((short) responseAPDU.getSW() == ISO7816.SW_DATA_INVALID) {
+                throw new SecretIndexException("No secret at this key/index.");
+            }
 
             if ((short) responseAPDU.getSW() == ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED) {
                 throw new WrongPinException("Wrong PIN.");
@@ -142,11 +165,12 @@ public class RealCard implements ICard {
      * @throws CardException Failed to select the applet
      */
     private void select() throws CardException {
+
         CommandAPDU commandAPDU = ApduFactory.selectAppletApdu(aid);
         ResponseAPDU responseAPDU = channel.transmit(commandAPDU);
 
         if ((short) responseAPDU.getSW() != ISO7816.SW_NO_ERROR) {
-            throw new CardRuntimeException("Failed to select applet. Card code: " + responseAPDU.getSW());
+            throw new CardRuntimeException("Failed to select applet. Card code: " + (short) responseAPDU.getSW());
         }
     }
 }

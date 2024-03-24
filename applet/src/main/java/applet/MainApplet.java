@@ -21,13 +21,17 @@ public class MainApplet extends Applet implements MultiSelectable {
 	private static final byte INS_GET_STATE = (byte) 0x1C;
 	static final byte INS_VERIFY_PIN = (byte) 0x1D;
 	static final byte INS_CHANGE_PIN = (byte) 0xC2;
+	static final byte INS_SET_SECRET = (byte) 0xD3;
 
-	private static final short MAX_SECRET_COUNT = 16;
-	private static final short MAX_SECRET_NAME_LENGTH = 20;
-	static final short MAX_SECRET_VALUE_LENGTH = 20;
+	private static final short MAX_SECRET_COUNT = (short) 16;
+	private static final short MAX_SECRET_NAME_LENGTH = (short) 20;
+	static final short MAX_SECRET_VALUE_LENGTH = (short) 64;
 
 	public final byte SECRET_NOT_FILLED = (byte) 0xC4;
 	public final byte SECRET_FILLED = (byte) 0x26;
+
+	public final byte OVERWRITE_DONT = (byte) 0x00;
+	public final byte OVERWRITE_DO = (byte) 0x25;
 
 	static final byte PIN_LENGTH = (byte) 0x04;
 	static final byte PIN_MAX_RETRIES = (byte) 0x03;
@@ -74,18 +78,36 @@ public class MainApplet extends Applet implements MultiSelectable {
 		pin.update(DEFAULT_PIN, (short) 0, PIN_LENGTH);
 
 		// Hardcoded secret names and values
-		storeSecret(
-				(short) 0x01,
-				new byte[]{'V', 'a', 'l', 'u', 'e', '1'}
-		);
-		storeSecret(
-				(short) 0x07,
-				new byte[]{'V', 'a', 'l', 'u', 'e', '2'}
-		);
-		storeSecret(
-				(short) 0x0A,
-				new byte[]{'V', 'a', 'l', 'u', 'e', '3'}
-		);
+        // Just for testing, Should be deleted in 1.0
+		Util.arrayCopyNonAtomic(new byte[]{'S', 'e', 'c', 'r', 'e', 't', '1'},
+				(short) 0,
+				secretValues[(short) 0x01].secretValue,
+				(short) 0,
+				(short) 7);
+
+		secretValues[(short) 0x01].setLength((short) 7);
+		secretStatus[(short) 0x01] = SECRET_FILLED;
+		secretCount++;
+
+		Util.arrayCopyNonAtomic(new byte[]{'S', 'e', 'c', 'r', 'e', 't', '2'},
+				(short) 0,
+				secretValues[(short) 0x07].secretValue,
+				(short) 0,
+				(short) 7);
+
+		secretValues[(short) 0x07].setLength((short) 7);
+		secretStatus[(short) 0x07] = SECRET_FILLED;
+		secretCount++;
+
+		Util.arrayCopyNonAtomic(new byte[]{'S', 'e', 'c', 'r', 'e', 't', '3'},
+				(short) 0,
+				secretValues[(short) 0x0A].secretValue,
+				(short) 0,
+				(short) 7);
+
+		secretValues[(short) 0x07].setLength((short) 7);
+		secretStatus[(short) 0x0A] = SECRET_FILLED;
+		secretCount++;
 
 		// more state changes just for demo purposes
 		// stateModel.setSecondaryState(StateModel.SECURE_CHANNEL_ESTABLISHED);
@@ -122,6 +144,9 @@ public class MainApplet extends Applet implements MultiSelectable {
 				// Return the current state of the applet
 				sendState(apdu);
 				break;
+			case INS_SET_SECRET:
+				storeSecret(apdu);
+				break;
 			case INS_CHANGE_PIN:
 				updatePIN(apdu);
 				break;
@@ -153,16 +178,26 @@ public class MainApplet extends Applet implements MultiSelectable {
 	}
 
 	//TODO: Add value to the SecretStore array and set the secret (at the same index) to filled status
-	private void storeSecret(short index, byte[] value) {
+	private void storeSecret(APDU apdu) {
+
+		byte[] apduBuffer = apdu.getBuffer();
+		short index = apduBuffer[ISO7816.OFFSET_P1];
+		short length = apdu.getIncomingLength();
+		byte overwrite = apduBuffer[ISO7816.OFFSET_P2];
+
+		// Verify PIN
+		if (verifyPIN(apdu, ISO7816.OFFSET_CDATA, PIN_DEFAULT_OFFSETS[1]) != RTR_PIN_SUCCESS) {
+			ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+		}
 
 		// Check if the store is full
 		if (secretCount >= MAX_SECRET_COUNT) {
-			ISOException.throwIt(ISO7816.SW_FILE_FULL);
+			ISOException.throwIt(ISO7816.SW_INCORRECT_P1P2);
 		}
 
 		// Check if the index is out of range
 		if (index >= MAX_SECRET_COUNT) {
-			ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+			ISOException.throwIt(ISO7816.SW_INCORRECT_P1P2);
 		}
 
 		// Check if index is a negative number
@@ -170,16 +205,24 @@ public class MainApplet extends Applet implements MultiSelectable {
 			ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
 		}
 
-		short valueLength = (short) value.length;
+		if (overwrite == OVERWRITE_DONT && secretStatus[index] == SECRET_FILLED) {
+			ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+		}
+
+		short secretLength = (short) (apdu.getIncomingLength() - (short) PIN_LENGTH);
 
 		// Check if the value being stored is too long
-		if (valueLength > MAX_SECRET_VALUE_LENGTH) {
+		if (secretLength > MAX_SECRET_VALUE_LENGTH) {
 			ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
 		}
 
 		// Store the value
-		Util.arrayCopyNonAtomic(value, (short) 0, secretValues[index].secretValue, (short) 0, valueLength);
-		secretValues[index].setLength(valueLength);
+		Util.arrayCopyNonAtomic(apduBuffer,
+				PIN_DEFAULT_OFFSETS[2],
+				secretValues[index].secretValue,
+				(short) 0,
+				secretLength);
+		secretValues[index].setLength(secretLength);
 		secretStatus[index] = SECRET_FILLED;
 		secretCount++;
 	}
@@ -187,7 +230,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 	private void getSecretValue(APDU apdu) {
 
 		// Verify PIN
-		if (verifyPIN(apdu, ISO7816.OFFSET_CDATA, (short) 9) != RTR_PIN_SUCCESS) {
+		if (verifyPIN(apdu, ISO7816.OFFSET_CDATA, PIN_DEFAULT_OFFSETS[1]) != RTR_PIN_SUCCESS) {
 			ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
 		}
 
@@ -248,8 +291,15 @@ public class MainApplet extends Applet implements MultiSelectable {
 		if (verifyPIN(apdu,PIN_DEFAULT_OFFSETS[0], PIN_DEFAULT_OFFSETS[1]) != RTR_PIN_SUCCESS)
 			ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
 
-		stateModel.changeState(StateModel.STATE_PRIVILEGED);
-		pin.update(apduBuffer, PIN_DEFAULT_OFFSETS[2], PIN_LENGTH);
+		//stateModel.changeState(StateModel.STATE_PRIVILEGED);
+
+		try {
+			pin.update(apduBuffer, PIN_DEFAULT_OFFSETS[2], PIN_LENGTH);
+		} catch (PINException e) {
+			ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+		}
+
+		//stateModel.changeState(StateModel.STATE_UNPRIVILEGED);
 
 //		stateModel.changeState(StateModel.STATE_UNPRIVILEGED);
 		ISOException.throwIt(ISO7816.SW_NO_ERROR);
