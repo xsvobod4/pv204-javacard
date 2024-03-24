@@ -9,7 +9,6 @@ import javax.smartcardio.CommandAPDU;
 
 import static main.utils.ApduFactory.genericApdu;
 import static org.junit.jupiter.api.Assertions.*;
-
 public class ApduFactoryTest {
 
     @Test
