@@ -3,7 +3,7 @@ package main.utils;
 import main.utils.constants.ClassConstants;
 import main.utils.constants.InstructionConstants;
 import main.utils.constants.OffsetConstants;
-import org.junit.Test;
+import org.junit.jupiter.api.*;
 
 import javax.smartcardio.CommandAPDU;
 
@@ -18,7 +18,7 @@ public class ApduFactoryTest {
         assertEquals(InstructionConstants.INS_CHANGE_PIN, commandAPDU.getINS());
         assertEquals(OffsetConstants.OFFSET_NULL, commandAPDU.getP1());
         assertEquals(OffsetConstants.OFFSET_NULL, commandAPDU.getP2());
-        assertEquals(TypeConverter.hexStringToByteArray("12344321"), commandAPDU.getData());
+        assertArrayEquals(TypeConverter.stringIntToByteArray("12344321"), commandAPDU.getData());
     }
 
     @Test
@@ -26,9 +26,9 @@ public class ApduFactoryTest {
         CommandAPDU commandAPDU = ApduFactory.revealSecretApdu("1234", (byte) 0x01);
         assertEquals(ClassConstants.CLA_BASIC, commandAPDU.getCLA());
         assertEquals(InstructionConstants.INS_REVEAL_SECRET, commandAPDU.getINS());
-        assertEquals(OffsetConstants.OFFSET_NULL, commandAPDU.getP1());
+        assertEquals(OffsetConstants.OFFSET_ONE, commandAPDU.getP1());
         assertEquals(OffsetConstants.OFFSET_NULL, commandAPDU.getP2());
-        assertEquals(TypeConverter.hexStringToByteArray("12341"), commandAPDU.getData());
+        assertArrayEquals(TypeConverter.stringIntToByteArray("1234"), commandAPDU.getData());
     }
 
     @Test
@@ -36,9 +36,9 @@ public class ApduFactoryTest {
         CommandAPDU commandAPDU = ApduFactory.revealSecretApdu("1234", (byte) 0x0c);
         assertEquals(ClassConstants.CLA_BASIC, commandAPDU.getCLA());
         assertEquals(InstructionConstants.INS_REVEAL_SECRET, commandAPDU.getINS());
-        assertEquals(OffsetConstants.OFFSET_NULL, commandAPDU.getP1());
+        assertEquals(OffsetConstants.OFFSET_TWELVE, commandAPDU.getP1());
         assertEquals(OffsetConstants.OFFSET_NULL, commandAPDU.getP2());
-        assertEquals(TypeConverter.hexStringToByteArray("1234C"), commandAPDU.getData());
+        assertArrayEquals(TypeConverter.stringIntToByteArray("1234"), commandAPDU.getData());
     }
 
     @Test
@@ -48,7 +48,7 @@ public class ApduFactoryTest {
         assertEquals(InstructionConstants.INS_SELECT, commandAPDU.getINS());
         assertEquals(OffsetConstants.OFFSET_NULL, commandAPDU.getP1());
         assertEquals(OffsetConstants.OFFSET_NULL, commandAPDU.getP2());
-        assertEquals(TypeConverter.hexStringToByteArray("1234"), commandAPDU.getData());
+        assertArrayEquals(TypeConverter.hexStringToByteArray("1234"), commandAPDU.getData());
     }
 
     @Test
@@ -58,6 +58,23 @@ public class ApduFactoryTest {
         assertEquals(InstructionConstants.INS_GET_SECRET_NAMES, commandAPDU.getINS());
         assertEquals(OffsetConstants.OFFSET_NULL, commandAPDU.getP1());
         assertEquals(OffsetConstants.OFFSET_NULL, commandAPDU.getP2());
-        assertEquals(TypeConverter.hexStringToByteArray(""), commandAPDU.getData());
+        assertArrayEquals(TypeConverter.hexStringToByteArray(""), commandAPDU.getData());
     }
+
+    @Test
+    public void testInvalidApdu() {
+        CommandAPDU commandAPDU = ApduFactory.invalidAPDU();
+        assertEquals(ClassConstants.CLA_BASIC, commandAPDU.getCLA());
+        assertEquals(InstructionConstants.INS_INVALID, commandAPDU.getINS());
+        assertEquals(OffsetConstants.OFFSET_NULL, commandAPDU.getP1());
+        assertEquals(OffsetConstants.OFFSET_NULL, commandAPDU.getP2());
+        assertArrayEquals(TypeConverter.hexStringToByteArray(""), commandAPDU.getData());
+    }
+
+    @Test
+    public void testInvalidApdu2() {
+        CommandAPDU commandAPDU = ApduFactory.invalidAPDU2();
+        assertArrayEquals(TypeConverter.stringIntToByteArray("00000"), commandAPDU.getData());
+    }
+
 }
