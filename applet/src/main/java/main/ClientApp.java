@@ -4,13 +4,14 @@ import main.cardinterface.ICard;
 import main.cardinterface.RealCard;
 import main.cardinterface.SimulatedCard;
 import main.exceptions.SecretIndexException;
+import main.utils.FileUtil;
 import main.utils.InputParser;
 import main.utils.constants.CardSettings;
-import main.utils.constants.IndexMapper;
 import main.utils.constants.ReturnMsgConstants;
 import main.utils.enums.CardType;
 
 import javax.smartcardio.CardException;
+import java.util.HashMap;
 
 public class ClientApp {
 
@@ -50,13 +51,10 @@ public class ClientApp {
                 getSecretNames(card);
                 break;
             case REVEAL_SECRET:
-                revealSecret(inputParser.getPin(), inputParser.getKey(), card);
+                revealSecret(inputParser.getPin(), inputParser.getKeyIndex(), card);
                 break;
             case SET_SECRET:
-                card.storeValue(inputParser.getKey(),
-                        inputParser.getValue(),
-                        inputParser.getPin(),
-                        inputParser.getOverwrite());
+                setSecret(inputParser, card);
                 break;
             default:
                 throw new IllegalArgumentException("Invalid instruction: " + inputParser.getInstruction());
@@ -75,11 +73,42 @@ public class ClientApp {
 
     private static void getSecretNames(ICard card) {
         byte[] secretNames = card.getSecretNames();
+        HashMap<Short, String> nameMapper = FileUtil.loadSecretNames();
+
         //Simply prints the secret names onto the screen. Can be used for piping.
         for (short i = (short) 0; i < secretNames.length; i++) {
             if (secretNames[i] == ReturnMsgConstants.SECRET_FILLED) {
-                System.out.println(i + "\t" + IndexMapper.INDEX_TO_NAME.get((byte)i));
+                if (nameMapper.containsKey(i)) {
+                    System.out.println(i + "\t" + nameMapper.get(i));
+                } else {
+                    throw new IllegalStateException("Secret name storage is in an inconsistent state.");
+                }
             }
+        }
+    }
+
+    private static void setSecret(InputParser inputParser, ICard card) {
+
+        card.storeValue(inputParser.getKeyIndex(),
+                inputParser.getValue(),
+                inputParser.getPin(),
+                inputParser.getOverwrite());
+
+        boolean writeIntoFile = false;
+        byte[] secretNames = card.getSecretNames();
+        HashMap<Short, String> nameMapper = FileUtil.loadSecretNames();
+
+        if (secretNames[inputParser.getKeyIndex()] != ReturnMsgConstants.SECRET_FILLED) {
+            throw new IllegalStateException("Secret name was not correctly saved.");
+        }
+
+        if (!nameMapper.containsKey((short)inputParser.getKeyIndex())) {
+            writeIntoFile = true;
+        }
+
+        if (writeIntoFile) {
+            FileUtil.saveSecretPair(inputParser.getKeyIndex(),
+                    inputParser.getKeyName());
         }
     }
 }

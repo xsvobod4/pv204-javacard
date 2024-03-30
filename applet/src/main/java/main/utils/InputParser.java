@@ -1,27 +1,28 @@
 package main.utils;
 
-import main.utils.constants.IndexMapper;
 import main.utils.constants.OffsetConstants;
 import main.utils.enums.CardType;
 import main.utils.enums.Instruction;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
-import java.util.Objects;
+import java.io.Console;
+import java.util.Collections;
+import java.util.HashMap;
 
 public class InputParser {
-    private CardType cardType = null;
+    private CardType cardType = CardType.REAL;
     private int terminalNumber = 0;
 
     private Instruction instruction = null;
     private String pin = null;
     private String newPin = null;
-    private Byte key = null;
+    private String keyName = null;
+    private Byte keyIndex = null;
     private String value = null;
     private Byte overwrite = OffsetConstants.OVERWRITE_DONT;
 
     private static final int PIN_LENGTH = ApduFactory.PIN_LENGTH;
     private static final int SECRET_MAX_LENGTH = ApduFactory.SECRET_MAX_LENGTH;
-    private static final int KEY_LENGTH = 15;
+    private static final int KEY_LENGTH = 255;
 
     /**
      * Parses command line arguments and initializes InputParser.
@@ -38,15 +39,15 @@ public class InputParser {
 
         if (args[0].equals("-h") || args[0].equals("--help")) {
             printHelp();
+            cardType = CardType.HELP;
             return;
         }
 
         while (i < args.length) {
             switch (args[i]) {
-                case "-c":
-                case "--card":
-                    cardType = resolveCardType(args[i + 1]);
-                    i += 2;
+                case "--sim":
+                    cardType = CardType.SIMULATED;
+                    i += 1;
                     break;
                 case "-t":
                 case "--terminal":
@@ -74,7 +75,7 @@ public class InputParser {
                     break;
                 case "-k":
                 case "--key":
-                    key = sanitizeKey(args[i + 1]);
+                    sanitizeAndSetKey(args[i + 1]);
                     i += 2;
                     break;
                 case "-v":
@@ -102,7 +103,7 @@ public class InputParser {
     public void printHelp() {
         System.out.println("-----SECRET STORAGE CARD CLIENT-----");
         System.out.println("Usage:");
-        System.out.println("./gradlew run --args=\"[-h | --help] -c <card type> [-t <terminal number>] -i <instruction> [instruction_options]\"");
+        System.out.println("./gradlew run --args=\"[-h | --help] [-t <terminal number>] -i <instruction> [instruction_options]\"");
         System.out.println();
         System.out.println("Instruction options:");
         System.out.println("-p, --pin <pin>\tFour digit card PIN.");
@@ -110,34 +111,13 @@ public class InputParser {
         System.out.printf("-k, --key <key>\tQuery data key. Should be a number 1-%d or the name of the slot.\n", KEY_LENGTH);
         System.out.println("-v, --value <value>\tQuery data value of length <= \n" + SECRET_MAX_LENGTH);
         System.out.println("-o, --overwrite\tOverwrite existing data on card.");
+        System.out.println("--sim\t Run a card simulator. Default card type is real.");
         System.out.println();
-        System.out.println("Card types:");
-        System.out.println("sim\tSimulated card.");
-        System.out.println("real\tReal card.");
         System.out.println("Instructions:");
         System.out.println("change_pin, cp\tPIN change.\tOptions: -p <old pin> -n <new pin>");
         System.out.println("get_secret_names, sn\tGet secret names.");
         System.out.println("reveal_secret, rs\tReveal secret.\tOptions: -p <pin> -k <key>");
         System.out.println("set_secret, set\tSet secret.\tOptions: -p <pin> -k <key> -v <value> [-o]");
-    }
-
-    /**
-     * Assigns CardType to cardType.
-     *
-     * @param cardType String version of CardType
-     * @return CardType
-     */
-    private CardType resolveCardType(String cardType) {
-        switch (cardType) {
-            case "sim":
-            case "simulated":
-                return CardType.SIMULATED;
-            case "real":
-                return CardType.REAL;
-            default:
-                printHelp();
-                throw new IllegalArgumentException("Invalid card type: " + cardType);
-        }
     }
 
     /**
@@ -180,13 +160,13 @@ public class InputParser {
         //Pin should only contain digits
         for (int i = 0; i < trimmedPin.length(); i++) {
             if (!Character.isDigit(trimmedPin.charAt(i))) {
-                throw new IllegalArgumentException("Invalid PIN: " + pin);
+                throw new IllegalArgumentException("Invalid PIN");
             }
         }
 
         //Pin should be exactly 4 digits
         if (trimmedPin.length() != PIN_LENGTH) {
-            throw new IllegalArgumentException("Invalid PIN length: " + pin.length());
+            throw new IllegalArgumentException("Invalid PIN length");
         }
 
         return trimmedPin;
@@ -206,35 +186,40 @@ public class InputParser {
      * @param key Query key
      * @return Sanitized query key
      */
-    private Byte sanitizeKey(String key) {
+    private void sanitizeAndSetKey(String key) {
 
         String trimmedKey = key.trim();
 
         for (int i = 0; i < trimmedKey.length(); i++) {
             if (!Character.isDigit(trimmedKey.charAt(i))) {
-                Byte keyIndex = IndexMapper.NAME_TO_INDEX.get(key);
 
-                if (keyIndex == null) {
-                    throw new IllegalArgumentException("Query key does not exist: " + key);
+                HashMap<Short, String> map = FileUtil.loadSecretNames();
+                for (short i2 = (short) 0; i2 < map.size(); i2++) {
+                    if (map.get(i2).equals(trimmedKey)) {
+                        keyIndex = (byte) i2;
+                        break;
+                    }
                 }
 
-                return keyIndex;
+                keyName = trimmedKey;
+                return;
             }
         }
 
        try {
-           short shortKey = Byte.parseByte(trimmedKey);
+           HashMap<Short, String> map = FileUtil.loadSecretNames();
+           byte shortKey = Byte.parseByte(trimmedKey);
 
-           if (shortKey < (short) 0 || shortKey > (short) KEY_LENGTH) {
-               throw new IllegalArgumentException("Key must be of value 0-" + KEY_LENGTH);
+           if (map.containsKey((short) shortKey)) {
+               keyName = map.get((short) shortKey);
+               keyIndex = shortKey;
            } else {
-               return (byte) shortKey;
+               throw new IllegalArgumentException("Key does not exist in secret name list.");
            }
 
        } catch (NumberFormatException e) {
            throw new IllegalArgumentException("Key is not of short type: " + key);
        }
-
     }
 
     /**
@@ -242,6 +227,8 @@ public class InputParser {
      * Checks if all required parameters are set.
      */
     private void testInputCombination() {
+
+        Console console = System.console();
 
         if (cardType == null) {
             throw new IllegalStateException("Card type is not set");
@@ -255,33 +242,56 @@ public class InputParser {
             case CHANGE_PIN:
                 //Changing PIN requires old and new PIN
                 if (pin == null) {
-                    throw new IllegalStateException("Old PIN is not set");
+                    pin = sanitizePin(ConsoleWrapper.readPassword("Old PIN: "));
                 }
                 if (newPin == null) {
-                    throw new IllegalStateException("New PIN is not set");
+                    newPin = sanitizePin(ConsoleWrapper.readPassword("New PIN: "));
                 }
                 break;
             case GET_SECRET_NAMES:
                 break;
             case REVEAL_SECRET:
                 //Revealing secret requires PIN and key
-                if (pin == null) {
-                    throw new IllegalStateException("PIN is not set");
+                if (keyName == null && keyIndex == null) {
+                    sanitizeAndSetKey(ConsoleWrapper.readLine("Key: "));
                 }
-                if (key == null) {
-                    throw new IllegalStateException("Key is not set");
+                if (keyIndex == null) {
+                    throw new IllegalArgumentException("Key index is not set or found");
+                }
+                if (pin == null) {
+                    pin = sanitizePin(ConsoleWrapper.readPassword("PIN: "));
                 }
                 break;
             case SET_SECRET:
                 //Setting secret requires PIN and key
-                if (pin == null) {
-                    throw new IllegalStateException("PIN is not set");
+                if (keyName == null && keyIndex == null) {
+                    sanitizeAndSetKey(ConsoleWrapper.readLine("Key: "));
                 }
-                if (key == null) {
-                    throw new IllegalStateException("Key is not set");
+
+                if (keyName == null) {
+                    throw new IllegalArgumentException("Key name is not set");
                 }
+
+                if (keyIndex == null) {
+                    HashMap<Short, String> map = FileUtil.loadSecretNames();
+
+                    for (short i = (short) 0; i < map.size(); i++) {
+                        if (map.get(i).equals(keyName)) {
+                            keyIndex = (byte) i;
+                            break;
+                        }
+                    }
+
+                    if (keyIndex == null) {
+                        keyIndex = (byte) (Collections.max(map.keySet()) + (short) 1);
+                    }
+                }
+
                 if (value == null) {
-                    throw new IllegalStateException("Value is not set");
+                    value = sanitizeValue(ConsoleWrapper.readLine("Value: "));
+                }
+                if (pin == null) {
+                    pin = sanitizePin(ConsoleWrapper.readPassword("PIN: "));
                 }
                 break;
             default:
@@ -305,8 +315,12 @@ public class InputParser {
         return newPin;
     }
 
-    public Byte getKey() {
-        return key;
+    public String getKeyName() {
+        return keyName;
+    }
+
+    public byte getKeyIndex() {
+        return keyIndex;
     }
 
     public int getTerminalNumber() {
