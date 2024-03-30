@@ -78,11 +78,7 @@ public class ClientApp {
         //Simply prints the secret names onto the screen. Can be used for piping.
         for (short i = (short) 0; i < secretNames.length; i++) {
             if (secretNames[i] == ReturnMsgConstants.SECRET_FILLED) {
-                if (nameMapper.containsKey(i)) {
-                    System.out.println(i + "\t" + nameMapper.get(i));
-                } else {
-                    throw new IllegalStateException("Secret name storage is in an inconsistent state.");
-                }
+                System.out.println(i + "\t" + nameMapper.getOrDefault(i, "Unknown"));
             }
         }
     }

@@ -214,7 +214,7 @@ public class InputParser {
                keyName = map.get((short) shortKey);
                keyIndex = shortKey;
            } else {
-               throw new IllegalArgumentException("Key does not exist in secret name list.");
+               keyIndex = shortKey;
            }
 
        } catch (NumberFormatException e) {
