@@ -8,6 +8,7 @@ import javacard.framework.Util;
 import main.utils.ApduFactory;
 import main.utils.TypeConverter;
 import main.utils.constants.InstructionConstants;
+import main.utils.constants.ReturnMsgConstants;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
@@ -40,11 +41,20 @@ public class TestingClientApp {
         simulator.selectApplet(appletAID);
 
         // 4. send APDU
-        CommandAPDU commandAPDUList = new CommandAPDU(0x00, InstructionConstants.INS_GET_SECRET_NAMES, 0x00, 0x00);
+/*        CommandAPDU commandAPDUList = ApduFactory.requestSecretNamesApdu();
         ResponseAPDU responseList = simulator.transmitCommand(commandAPDUList);
         System.out.println("List secrets:");
         System.out.println("Data length:" + responseList.getData().length);
         System.out.println(new String(responseList.getData()));
+
+        byte[] secretNames = responseList.getData();
+        //Simply prints the secret names onto the screen. Can be used for piping.
+        for (short i = (short) 0; i < secretNames.length; i++) {
+            if (secretNames[i] == ReturnMsgConstants.SECRET_FILLED) {
+                System.out.println(i);
+            }
+        }
+        System.out.println("-------------");*/
 
 
     /*
@@ -111,52 +121,43 @@ public class TestingClientApp {
 		SecretKeySpec aesKey = new SecretKeySpec(decryptedAESkey, "AES");
 		System.out.println("Decrypted KEY length: " + decryptedAESkey.length);
 		System.out.println("Decrypted KEY: " + new String(decryptedAESkey));
+        ////////////////////////// konec ustanovení aes klíče
 
-        ////// use aes key with encryption
 
-//        [108, 85, 68, 121, 122, -111, 17, 93, -61, 51, 14, -67, 0, 56, 81, -46]
-//        Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
-//        cipher.init(Cipher.ENCRYPT_MODE, aesKey);
+        //   request list of secrets - comes back encrypted
+        CommandAPDU commandAPDUListSecrets = new CommandAPDU(0x20, InstructionConstants.INS_GET_SECRET_NAMES, 0x00, 0x00);
+        // CommandAPDU commandAPDUListSecrets = ApduFactory.requestSecretNamesApdu();
+        ResponseAPDU responseList3 = simulator.transmitCommand(commandAPDUListSecrets);
 
-//        CommandAPDU commandAPDUList3 = new CommandAPDU(0x00, InstructionConstants.INS_GET_SECRET_NAMES, 0x00, 0x00);
-//        byte[] apduData = commandAPDUList3.getData();
+        byte[] decryptedResponseData = secureChannel.decryptAESWithKey(aesKey, responseList3.getData());
+        for (short i = (short) 0; i < decryptedResponseData.length; i++) {
+            if (decryptedResponseData[i] == ReturnMsgConstants.SECRET_FILLED) {
+                System.out.println(i);
+            }
+        }
 
-        // Encrypt the payload data
-
+        // encrypted reveal secret:
         byte[] DEFAULT_PIN = new byte[]{0x01, 0x02, 0x03, 0x04};
         byte secretName = (byte) 0x01;
-
-
-
-
-        //        byte[] encryptedAPDUData = cipher.doFinal(apduData);
         byte[] encryptedPIN = secureChannel.encryptAESWithKey(aesKey, DEFAULT_PIN);
-
-
-        // Create a new CommandAPDU with the encrypted payload data
-        CommandAPDU encryptedCommandAPDU = ApduFactory.genericApdu(
+        CommandAPDU revealSecretApdu = ApduFactory.genericApdu(
                 (byte) 0x00, // CLA
                 (byte) InstructionConstants.INS_REVEAL_SECRET, // INS_GET_SECRET_VALUE
                 secretName, // P1
                 (byte) 0x00, // P2
-                DEFAULT_PIN         // Data
+                encryptedPIN         // Data
         );
+        // Transmit the APDU command to the JavaCard applet
+        ResponseAPDU responseReveal = simulator.transmitCommand(revealSecretApdu);
 
-//        CommandAPDU encryptedCommandAPDU = new CommandAPDU(0x00, InstructionConstants.INS_VERIFY_PIN, 0x00, 0x00, encryptedPIN);
-        // Transmit the encrypted APDU
-        ResponseAPDU responseList3 = simulator.transmitCommand(encryptedCommandAPDU);
-        // Decrypt the response data
+        byte[] decryptedResponseDataReveal = secureChannel.decryptAESWithKey(aesKey, responseReveal.getData());
+        System.out.println("Reveal secret:");
+// Decode the decrypted response using UTF-8 encoding
+        String decryptedResponseString = new String(decryptedResponseDataReveal, StandardCharsets.UTF_8);
+        System.out.println(decryptedResponseString);
+        System.out.println("SW: " + (short) responseReveal.getSW());
 
-        // Initialize the Cipher for decryption
 
-
-        // Decrypt the data
-//        byte[] decryptedResponseData = cipher.doFinal(responseList3.getData());
-        byte[] decryptedResponseData = secureChannel.decryptAESWithKey(aesKey, responseList3.getData());
-        String decryptedResponse = new String(decryptedResponseData, StandardCharsets.UTF_8);        // Print the decrypted response
-        System.out.println("List secrets:");
-        System.out.println("Data length: " + decryptedResponseData.length);
-        System.out.println(decryptedResponse);
     }
 }
 

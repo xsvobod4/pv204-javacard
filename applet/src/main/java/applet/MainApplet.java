@@ -120,26 +120,11 @@ public class MainApplet extends Applet implements MultiSelectable {
 		// short dataLength = apdu.setIncomingAndReceive();
 		byte ins = apduBuffer[ISO7816.OFFSET_INS];
 
-		// not so nice, would be better to check based on state
 		// TODO: doladit tuhle logiku s pomocí state enforceru:
 		//if key is empty and INS = ISN_INIT_SC -> proceed to switch, it is ok
 		//if key is empty and INS =/= ISN_INIT_SC -> throw exception
 		//if key is not empty and INS is ISN_INIT_SC -> proceed to switch, it is ok
 		//if key not empty and ins is not ISN_INIT_SC: decrypt whole apdu buffer and proceeds to switch
-//		try {
-//			byte[] keyData = new byte[AES_KEY_SIZE_BYTES];
-//			aesKey.getKey(keyData, (short) 0);
-//
-//			if (ins != INS_SC_INIT) {
-//				decryptAPDU(apduBuffer);
-//			}
-//		} catch (CryptoException e) {
-//			// Handle the case where the key data has not been successfully initialized
-//
-//			if (ins != INS_SC_INIT) {
-//				ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
-//			}
-//		}
 
 
 
@@ -152,7 +137,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 			case INS_LIST_SECRETS:
 				// Check if the function is allowed in the current state
 				// stateModel.checkAllowedFunction(StateModel.FNC_lookupSecretNames);
-				decryptAPDU(apduBuffer);
+				// decryptAPDU(apduBuffer);
 				listSecrets(apdu);
 				break;
 			case INS_GET_SECRET_VALUE:
@@ -220,7 +205,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 	private void decryptAPDU(byte[] apduBuffer) {
 		try {
 			// Initialize AES cipher for decryption
-			Cipher aesCipherDec = Cipher.getInstance(Cipher.ALG_AES_ECB_PKCS5, false);
+			Cipher aesCipherDec = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_ECB_NOPAD, false);
 
 			// Initialize AES cipher with the AES key
 			aesCipherDec.init(aesKey, Cipher.MODE_DECRYPT);
@@ -228,48 +213,106 @@ public class MainApplet extends Applet implements MultiSelectable {
 			// Get the data length (excluding header)
 			short dataLength = (short) (apduBuffer[ISO7816.OFFSET_LC] & 0xFF);
 
-			// Decrypt the APDU buffer (excluding header)
+			// Decrypt the data part of the APDU buffer (excluding header)
 			aesCipherDec.doFinal(apduBuffer, ISO7816.OFFSET_CDATA, dataLength, apduBuffer, ISO7816.OFFSET_CDATA);
 
-			// Update the Lc field in the APDU header if needed
-			apduBuffer[ISO7816.OFFSET_LC] = (byte) (apduBuffer[ISO7816.OFFSET_LC] - 16);
+			// Remove PKCS7 padding from the decrypted data
+			byte[] decryptedData = new byte[dataLength];
+			Util.arrayCopyNonAtomic(apduBuffer, ISO7816.OFFSET_CDATA, decryptedData, (short) 0, dataLength);
+			decryptedData = removePKCS7Padding(decryptedData, dataLength);
+
+			// Update the data in the APDU buffer with the decrypted and unpadded data
+			short newDataLength = (short) decryptedData.length;
+			Util.arrayCopyNonAtomic(decryptedData, (short) 0, apduBuffer, ISO7816.OFFSET_CDATA, newDataLength);
+
+			// Update the Lc field in the APDU header with the new data length
+			apduBuffer[ISO7816.OFFSET_LC] = (byte) newDataLength;
+
+			// Clear the remaining bytes in the buffer (padding bytes)
+			for (short i = (short) (ISO7816.OFFSET_CDATA + newDataLength); i < apduBuffer.length; i++) {
+				apduBuffer[i] = 0x00;
+			}
+
 		} catch (CryptoException e) {
 			// Handle decryption error
 			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
 		}
 	}
 
-	private void encryptAPDU(byte[] apduBuffer) {
+	private byte[] encryptAPDU(byte[] data) {
 		try {
+			data = padPKCS7(data, (short) 16);
 			// Create AES cipher instance for encryption
-			aesCipherEnc = Cipher.getInstance(Cipher.ALG_AES_ECB_PKCS5, false);
+			Cipher aesCipherEnc = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_ECB_NOPAD, false);
 
 			// Initialize AES cipher with the AES key
 			aesCipherEnc.init(aesKey, Cipher.MODE_ENCRYPT);
 
-			// Get the data length
-			short dataLength = (short) (apduBuffer[ISO7816.OFFSET_LC] & 0xFF);
+			// Encrypt the data
+			aesCipherEnc.doFinal(data, (short) 0, (short) data.length, data, (short) 0);
 
-			// Encrypt the data in the APDU buffer
-			aesCipherEnc.doFinal(apduBuffer, ISO7816.OFFSET_CDATA, dataLength, apduBuffer, ISO7816.OFFSET_CDATA);
-
-			// Update the Lc field in the APDU header if needed
-			// Note: PKCS5 padding is used, so the encrypted data length will be a multiple of the block size (16 bytes for AES)
-			// Therefore, no update is needed for Lc field in the APDU header
+			return data; // Return the modified data array after encryption
 		} catch (CryptoException e) {
 			// Handle encryption error
 			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+			return null; // Return null in case of error
 		}
 	}
 
-	private void listSecrets(APDU apdu) {
-		// Encrypt the secret status data before sending
-		encryptAPDU(secretStatus);
+	private byte[] padPKCS7(byte[] data, short blockSize) {
+		// Calculate the number of padding bytes needed
+		short remainder = (short) (data.length % blockSize);
+		short paddingLength = remainder == 0 ? 0 : (short) (blockSize - remainder);
 
+		// Create a new byte array to hold the padded data
+		byte[] paddedData = new byte[(short) (data.length + paddingLength)];
+
+		// Copy the original data to the paddedData array
+		Util.arrayCopyNonAtomic(data, (short) 0, paddedData, (short) 0, (short) data.length);
+
+		// Add padding bytes
+		for (short i = (short) (data.length); i < (short) (data.length + paddingLength); i++) {
+			paddedData[i] = (byte) paddingLength; // Set the padding byte value
+		}
+
+		return paddedData;
+	}
+
+
+	private byte[] removePKCS7Padding(byte[] data, short dataLength) {
+		// Calculate the last byte, which represents the padding length
+		short paddingLength = (short) (data[dataLength - 1] & 0xFF);
+
+		// Ensure padding length is valid
+		if (paddingLength <= 0 || paddingLength > 16) { // Assuming each block is 16 bytes
+			// Padding is incorrect, throw exception or handle accordingly
+			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+		}
+
+		// Calculate the length of the unpadded data
+		short unpaddedLength = (short) (dataLength - paddingLength);
+
+		// Create a new byte array to hold the unpadded data
+		byte[] unpaddedData = new byte[unpaddedLength];
+
+		// Copy the unpadded data from the original buffer
+		Util.arrayCopyNonAtomic(data, (short) 0, unpaddedData, (short) 0, unpaddedLength);
+
+		return unpaddedData;
+	}
+
+	private void listSecrets(APDU apdu) {
 		// Send response
 		apdu.setOutgoing();
-		apdu.setOutgoingLength(MAX_SECRET_COUNT);
-		apdu.sendBytesLong(secretStatus, (short) 0, MAX_SECRET_COUNT);
+		//apdu.setOutgoingLength(MAX_SECRET_COUNT);
+
+		byte[] secretStatusCopy = new byte[MAX_SECRET_COUNT];
+		Util.arrayCopyNonAtomic(secretStatus, (short) 0, secretStatusCopy, (short) 0, MAX_SECRET_COUNT);
+		secretStatusCopy = encryptAPDU(secretStatusCopy); // Encrypt the data and get the modified array
+		short encryptedLength = (short) secretStatusCopy.length;
+		apdu.setOutgoingLength(encryptedLength); // Set outgoing length to the size of encrypted data
+
+		apdu.sendBytesLong(secretStatusCopy, (short) 0, MAX_SECRET_COUNT);
 	}
 
 	public boolean select(boolean b) {
@@ -318,13 +361,13 @@ public class MainApplet extends Applet implements MultiSelectable {
 	}
 
 	private void getSecretValue(APDU apdu) {
-
+		byte[] apduBuffer = apdu.getBuffer();
+		decryptAPDU(apduBuffer);
 		// Verify PIN
 		if (verifyPIN(apdu, ISO7816.OFFSET_CDATA, (short) 9) != RTR_PIN_SUCCESS) {
 			ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
 		}
 
-		byte[] apduBuffer = apdu.getBuffer();
 		byte queryKey = apduBuffer[ISO7816.OFFSET_P1];
 
 		// Check if the data length is at least one byte

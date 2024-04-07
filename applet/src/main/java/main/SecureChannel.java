@@ -25,7 +25,7 @@ public class SecureChannel {
 
 	public SecureChannel() throws Exception {
 		this.RSAKeyPair = generateRSAKeyPair();
-		this.cipherAES = Cipher.getInstance("AES/ECB/PKCS5Padding");
+		this.cipherAES = Cipher.getInstance("AES/ECB/NoPadding");
 	}
 
 	public RSAPublicKey getRSAPublicKey() {
@@ -58,14 +58,31 @@ public class SecureChannel {
 
 	public static byte[] encryptAESWithKey(SecretKeySpec aesKey, byte[] data)
 			throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
+		byte[] paddedData = padPKCS7(data, 16);
 		cipherAES.init(Cipher.ENCRYPT_MODE, aesKey);
-		return cipherAES.doFinal(data);
+		return cipherAES.doFinal(paddedData);
 	}
 
 	public static byte[] decryptAESWithKey(SecretKeySpec aesKey, byte[] data)
 			throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
 		cipherAES.init(Cipher.DECRYPT_MODE, aesKey);
-		return cipherAES.doFinal(data);
+		byte[] decryptedData = cipherAES.doFinal(data);
+
+		// Remove PKCS7 padding
+		return removePKCS7Padding(decryptedData);
+	}
+
+	private static byte[] padPKCS7(byte[] data, int blockSize) {
+		int paddingLength = blockSize - (data.length % blockSize);
+		byte paddingByte = (byte) paddingLength;
+		byte[] paddedData = Arrays.copyOf(data, data.length + paddingLength);
+		Arrays.fill(paddedData, data.length, paddedData.length, paddingByte);
+		return paddedData;
+	}
+
+	private static byte[] removePKCS7Padding(byte[] data) {
+		int paddingLength = data[data.length - 1];
+		return Arrays.copyOfRange(data, 0, data.length - paddingLength);
 	}
 
 }
