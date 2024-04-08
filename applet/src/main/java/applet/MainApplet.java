@@ -1,7 +1,8 @@
 package applet;
 
+import java.util.Arrays;
+
 import javacard.security.*;
-import javacardx.apdu.ExtendedLength;
 import javacardx.crypto.Cipher;
 import javacard.framework.*;
 
@@ -16,7 +17,8 @@ public class MainApplet extends Applet implements MultiSelectable {
 	private static final byte INS_GET_STATE = (byte) 0x1C;
 	static final byte INS_VERIFY_PIN = (byte) 0x1D;
 	static final byte INS_CHANGE_PIN = (byte) 0xC2;
-	private static final byte INS_SC_INIT = (byte) 0xE2;
+	private static final byte INS_SC_KEYS_INIT = (byte) 0xE2;
+	private static final byte INS_SC_GET_KEY = (byte) 0xD2;
 
 	private static final short MAX_SECRET_COUNT = 16;
 	private static final short MAX_SECRET_NAME_LENGTH = 20;
@@ -47,11 +49,14 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 
 	//stuff connected with secure channel
+	private byte[] RSAKeyBytes = new byte[512];
 	private AESKey aesKey;
 	private Cipher rsaCipher;
+	private byte[] aesKeyEncrypted;
 	private Cipher aesCipherEnc;
 	private Cipher aesCipherDec;
 	private static final short RSA_MODULUS_LENGTH = 128; // Length of RSA modulus in bytes
+	private static final short RSA_MODULUS_LENGTH_512 = 512; // Length of RSA modulus in bytes
 	private static final short AES_KEY_SIZE_BYTES = 16; // AES key size in bytes
 	private final byte[] exponentBytes = {0x01, 0x00, 0x01};
 	private RandomData rng;
@@ -70,7 +75,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 		// generateRandomAESKey(aesKey);
 		rsaCipher = Cipher.getInstance(Cipher.ALG_RSA_PKCS1, false);
 		rng = RandomData.getInstance(RandomData.ALG_SECURE_RANDOM);
-
+		aesKeyEncrypted = new byte[512];
 
 		secretValues = new SecretStore[MAX_SECRET_COUNT];
 		secretStatus = new byte[MAX_SECRET_COUNT];
@@ -144,10 +149,14 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 
 		switch (ins) {
-			case INS_SC_INIT:
+			case INS_SC_KEYS_INIT:
 				// stateModel.checkAllowedFunction(StateModel.FNC_InitSecureChannel);
-				initSecureChannel(apdu);
+				initSecureChannelKeys(apdu);
 				// TODO: stateModel.changeSTATE - to new state where it can only accept INS_SC_INIT or ENCRYPTED APDUs
+				break;
+			case INS_SC_GET_KEY:
+				// stateModel.checkAllowedFunction(StateModel.FNC_InitSecureChannel);
+				sendKeyToClient(apdu);
 				break;
 			case INS_LIST_SECRETS:
 				// Check if the function is allowed in the current state
@@ -177,39 +186,60 @@ public class MainApplet extends Applet implements MultiSelectable {
 		}
 	}
 
-	private void initSecureChannel(APDU apdu) {
+	private void initSecureChannelKeys(APDU apdu) {
 		byte[] apduBuffer = apdu.getBuffer();
 		short dataLength = apdu.setIncomingAndReceive();
-
-		// Check if incoming data length is correct (should be the size of RSA modulus)
-		if (dataLength != RSA_MODULUS_LENGTH) {
-			ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+		switch (dataLength) {
+			case 220:
+				System.arraycopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, 0, 220);
+				break;
+			case 200:
+				System.arraycopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, 220, 200);
+				break;
+			case 92:
+				System.arraycopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, 420, 92);
+				initializeKeys();
+				break;
+			default:
+				ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
 		}
+	}
 
-		// Get the RSA public key modulus from the APDU buffer
-		RSAPublicKey rsaPublicKey = (RSAPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_RSA_PUBLIC, RSA_MODULUS_LENGTH, false);
-		rsaPublicKey.setModulus(apduBuffer, ISO7816.OFFSET_CDATA, dataLength);
+	private void initializeKeys(){
+		RSAPublicKey rsaPublicKey = (RSAPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_RSA_PUBLIC, RSA_MODULUS_LENGTH_512, false);
+		rsaPublicKey.setModulus(RSAKeyBytes, (short) 0, (short) 512);
 
 		// Generate AES key
 		byte[] aesKeyBytes = new byte[AES_KEY_SIZE_BYTES];
 		doGenerateRandom(aesKeyBytes, (short) 0, AES_KEY_SIZE_BYTES);
 		aesKey.setKey(aesKeyBytes, (short) 0);
 
-		// AESKey aesKey = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_128, false);
-
 		// Exponent value 65537
 		rsaPublicKey.setExponent(exponentBytes, (short) 0, (short) exponentBytes.length);
 		// Create a separate byte buffer to hold the encrypted data
-		byte[] encryptedBuffer = new byte[RSA_MODULUS_LENGTH]; // Assuming the size of RSA modulus is the maximum size of encrypted data
 
 		// Encrypt AES key using RSA public key
 		rsaCipher.init(rsaPublicKey, Cipher.MODE_ENCRYPT);
-		rsaCipher.doFinal(aesKeyBytes, (short) 0, (short) aesKeyBytes.length, encryptedBuffer, (short) 0);
+		rsaCipher.doFinal(aesKeyBytes, (short) 0, (short) aesKeyBytes.length, aesKeyEncrypted, (short) 0);
+	}
 
-		// Send encrypted AES key as response
+	private void sendKeyToClient(APDU apdu){
+		byte[] apduBuffer = apdu.getBuffer();
+		short dataLength = apdu.setIncomingAndReceive();
+
 		apdu.setOutgoing();
-		apdu.setOutgoingLength(RSA_MODULUS_LENGTH);
-		apdu.sendBytesLong(encryptedBuffer, (short) 0, RSA_MODULUS_LENGTH);
+		apdu.setOutgoingLength((short) 256);
+
+		byte[] partOfKey = new byte[256];
+
+		if(apduBuffer[ISO7816.OFFSET_CDATA] == 1){
+			partOfKey = Arrays.copyOfRange(aesKeyEncrypted, 0, 256);
+		}
+		else if (apduBuffer[ISO7816.OFFSET_CDATA] == 2) {
+			partOfKey = Arrays.copyOfRange(aesKeyEncrypted, 256, aesKeyEncrypted.length);
+
+		}
+		apdu.sendBytesLong(partOfKey, (short) 0, (short) partOfKey.length);
 	}
 
 
