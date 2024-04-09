@@ -20,7 +20,7 @@ public class SecureChannel {
 	private KeyPair RSAKeyPair;
 	private static Cipher cipherAES;
 
-	private static final short RSA_KEY_LENGTH = 1024; // Length of RSA modulus in bytes
+	private static final short RSA_KEY_LENGTH = 4096; // Length of RSA modulus in bytes
 
 
 	public SecureChannel() throws Exception {

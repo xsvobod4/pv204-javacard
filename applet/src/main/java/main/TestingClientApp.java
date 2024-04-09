@@ -113,14 +113,62 @@ public class TestingClientApp {
                 (byte) InstructionConstants.INS_SC_INIT, // INS_GET_SECRET_VALUE
                 (byte) 0x00, // P1
                 (byte) 0x00, // P2
-                modulusBytes         // Data
+                Arrays.copyOfRange(modulusBytes, 0, 220)
         );
-        ResponseAPDU responseAPDUSCInnit = simulator.transmitCommand(commandAPDUSCInnit);
+        simulator.transmitCommand(commandAPDUSCInnit);
 
-        byte[] decryptedAESkey = secureChannel.decryptRSAWithPrivateKey(responseAPDUSCInnit.getData(), secureChannel.getRSAPrivateKey());
-		SecretKeySpec aesKey = new SecretKeySpec(decryptedAESkey, "AES");
-		System.out.println("Decrypted KEY length: " + decryptedAESkey.length);
-		System.out.println("Decrypted KEY: " + new String(decryptedAESkey));
+        CommandAPDU commandAPDUSCInnit2 = ApduFactory.genericApdu(
+                (byte) 0x00, // CLA
+                (byte) InstructionConstants.INS_SC_INIT, // INS_GET_SECRET_VALUE
+                (byte) 0x00, // P1
+                (byte) 0x00, // P2
+                Arrays.copyOfRange(modulusBytes, 220, 420)
+        );
+        simulator.transmitCommand(commandAPDUSCInnit2);
+
+        CommandAPDU commandAPDUSCInnit3 = ApduFactory.genericApdu(
+                (byte) 0x00, // CLA
+                (byte) InstructionConstants.INS_SC_INIT, // INS_GET_SECRET_VALUE
+                (byte) 0x00, // P1
+                (byte) 0x00, // P2
+                Arrays.copyOfRange(modulusBytes, 420, 512)
+        );
+        simulator.transmitCommand(commandAPDUSCInnit3);
+        //**************************GET KEY************************
+
+        byte[] encAESKey = new byte[512];
+
+        CommandAPDU commandAPDUSCgetKey1 = ApduFactory.genericApdu(
+                (byte) 0x00, // CLA
+                (byte) InstructionConstants.INS_SC_GET_KEY, // INS_GET_SECRET_VALUE
+                (byte) 0x00, // P1
+                (byte) 0x00, // P2
+                new byte[]{0x01}
+        );
+        ResponseAPDU responseAPDUSCgetKey1 =simulator.transmitCommand(commandAPDUSCgetKey1);
+        System.arraycopy(responseAPDUSCgetKey1.getData(), 0, encAESKey, 0, 256);
+
+        CommandAPDU commandAPDUSCgetKey2 = ApduFactory.genericApdu(
+                (byte) 0x00, // CLA
+                (byte) InstructionConstants.INS_SC_GET_KEY, // INS_GET_SECRET_VALUE
+                (byte) 0x00, // P1
+                (byte) 0x00, // P2
+                new byte[]{0x02}
+        );
+        ResponseAPDU responseAPDUSCgetKey2 =simulator.transmitCommand(commandAPDUSCgetKey2);
+        System.arraycopy(responseAPDUSCgetKey2.getData(), 0, encAESKey, 256, 256);
+
+
+
+
+        byte[] decryptedAESkey = secureChannel.decryptRSAWithPrivateKey(encAESKey, secureChannel.getRSAPrivateKey());
+
+
+        SecretKeySpec aesKey = new SecretKeySpec(decryptedAESkey, "AES");
+        System.out.println("Decrypted KEY length: " + decryptedAESkey.length);
+        System.out.println("Decrypted KEY: " + new String(decryptedAESkey));
+
+
         ////////////////////////// konec ustanovení aes klíče
 
 
