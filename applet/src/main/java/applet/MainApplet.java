@@ -5,7 +5,7 @@ import javacardx.apdu.ExtendedLength;
 import javacardx.crypto.Cipher;
 import javacard.framework.*;
 
-public class MainApplet extends Applet implements MultiSelectable {
+public class MainApplet extends Applet implements MultiSelectable, ExtendedLength {
 	/**
 	 * TODO: fix state model (secondary state check) - teď zakomentován, protože neprošlo nic
 	 *
@@ -20,7 +20,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 	private static final short MAX_SECRET_COUNT = 16;
 	private static final short MAX_SECRET_NAME_LENGTH = 20;
-	static final short MAX_SECRET_VALUE_LENGTH = 20;
+	static final short MAX_SECRET_VALUE_LENGTH = 63;
 
 	public final byte SECRET_NOT_FILLED = (byte) 0xC4;
 	public final byte SECRET_FILLED = (byte) 0x26;
@@ -55,6 +55,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 	private static final short AES_KEY_SIZE_BYTES = 16; // AES key size in bytes
 	private final byte[] exponentBytes = {0x01, 0x00, 0x01};
 	private RandomData rng;
+	private static final short BLOCK_SIZE = 16;
 
 
 	public static void install(byte[] bArray, short bOffset, byte bLength) {
@@ -241,7 +242,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 	private byte[] encryptAPDU(byte[] data) {
 		try {
-			data = padPKCS7(data, (short) 16);
+			data = padPKCS7(data);
 			// Create AES cipher instance for encryption
 			Cipher aesCipherEnc = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_ECB_NOPAD, false);
 
@@ -259,10 +260,10 @@ public class MainApplet extends Applet implements MultiSelectable {
 		}
 	}
 
-	private byte[] padPKCS7(byte[] data, short blockSize) {
+	private byte[] padPKCS7(byte[] data) {
 		// Calculate the number of padding bytes needed
-		short remainder = (short) (data.length % blockSize);
-		short paddingLength = remainder == 0 ? 0 : (short) (blockSize - remainder);
+		short remainder = (short) (data.length % BLOCK_SIZE);
+		short paddingLength = remainder == 0 ? 0 : (short) (BLOCK_SIZE - remainder);
 
 		// Create a new byte array to hold the padded data
 		byte[] paddedData = new byte[(short) (data.length + paddingLength)];
@@ -281,7 +282,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 	private byte[] removePKCS7Padding(byte[] data, short dataLength) {
 		// Calculate the last byte, which represents the padding length
-		short paddingLength = (short) (data[dataLength - 1] & 0xFF);
+		short paddingLength = (short) (data[(short) (dataLength - 1)] & 0xFF);
 
 		// Ensure padding length is valid
 		if (paddingLength <= 0 || paddingLength > 16) { // Assuming each block is 16 bytes
@@ -309,6 +310,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 		byte[] secretStatusCopy = new byte[MAX_SECRET_COUNT];
 		Util.arrayCopyNonAtomic(secretStatus, (short) 0, secretStatusCopy, (short) 0, MAX_SECRET_COUNT);
 		secretStatusCopy = encryptAPDU(secretStatusCopy); // Encrypt the data and get the modified array
+
 		short encryptedLength = (short) secretStatusCopy.length;
 		apdu.setOutgoingLength(encryptedLength); // Set outgoing length to the size of encrypted data
 
@@ -391,10 +393,11 @@ public class MainApplet extends Applet implements MultiSelectable {
 			// Handle the case where encryption failed
 			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
 		}
+		byte[] encryptedSecretValue = encryptAPDU(SecretValue);
 
 		apdu.setOutgoing();
-		apdu.setOutgoingLength( (short) SecretValue.length);
-		apdu.sendBytesLong(SecretValue , (short) 0, (short) SecretValue.length);
+		apdu.setOutgoingLength( (short) encryptedSecretValue.length);
+		apdu.sendBytesLong(encryptedSecretValue , (short) 0, (short) encryptedSecretValue.length);
 	}
 
 	private void sendState(APDU apdu) {
