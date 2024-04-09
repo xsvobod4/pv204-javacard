@@ -3,7 +3,6 @@ package applet;
 import java.util.Arrays;
 
 import javacard.framework.*;
-import sun.security.provider.SHA;
 
 public class MainApplet extends Applet implements MultiSelectable {
 	/**
@@ -23,9 +22,9 @@ public class MainApplet extends Applet implements MultiSelectable {
 	static final byte INS_CHANGE_PIN = (byte) 0xC2;
 	static final byte INS_SET_SECRET = (byte) 0xD3;
 
-	private static final short MAX_SECRET_COUNT = (short) 16;
+	private static final short MAX_SECRET_COUNT = (short) 63;
 	private static final short MAX_SECRET_NAME_LENGTH = (short) 20;
-	static final short MAX_SECRET_VALUE_LENGTH = (short) 64;
+	static final short MAX_SECRET_VALUE_LENGTH = (short) 63;
 
 	public final byte SECRET_NOT_FILLED = (byte) 0xC4;
 	public final byte SECRET_FILLED = (byte) 0x26;
@@ -81,6 +80,16 @@ public class MainApplet extends Applet implements MultiSelectable {
         // Just for testing, Should be deleted in 1.0
 		Util.arrayCopyNonAtomic(new byte[]{'S', 'e', 'c', 'r', 'e', 't', '1'},
 				(short) 0,
+				secretValues[(short) 0x00].secretValue,
+				(short) 0,
+				(short) 7);
+
+		secretValues[(short) 0x00].setLength((short) 7);
+		secretStatus[(short) 0x00] = SECRET_FILLED;
+		secretCount++;
+
+		Util.arrayCopyNonAtomic(new byte[]{'S', 'e', 'c', 'r', 'e', 't', '2'},
+				(short) 0,
 				secretValues[(short) 0x01].secretValue,
 				(short) 0,
 				(short) 7);
@@ -89,24 +98,14 @@ public class MainApplet extends Applet implements MultiSelectable {
 		secretStatus[(short) 0x01] = SECRET_FILLED;
 		secretCount++;
 
-		Util.arrayCopyNonAtomic(new byte[]{'S', 'e', 'c', 'r', 'e', 't', '2'},
-				(short) 0,
-				secretValues[(short) 0x07].secretValue,
-				(short) 0,
-				(short) 7);
-
-		secretValues[(short) 0x07].setLength((short) 7);
-		secretStatus[(short) 0x07] = SECRET_FILLED;
-		secretCount++;
-
 		Util.arrayCopyNonAtomic(new byte[]{'S', 'e', 'c', 'r', 'e', 't', '3'},
 				(short) 0,
-				secretValues[(short) 0x0A].secretValue,
+				secretValues[(short) 0x02].secretValue,
 				(short) 0,
 				(short) 7);
 
-		secretValues[(short) 0x07].setLength((short) 7);
-		secretStatus[(short) 0x0A] = SECRET_FILLED;
+		secretValues[(short) 0x02].setLength((short) 7);
+		secretStatus[(short) 0x02] = SECRET_FILLED;
 		secretCount++;
 
 		// more state changes just for demo purposes
