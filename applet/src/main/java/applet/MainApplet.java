@@ -23,7 +23,8 @@ public class MainApplet extends Applet implements MultiSelectable {
 	private static final byte INS_SC_KEYS_INIT = (byte) 0xE2;
 	private static final byte INS_SC_GET_KEY = (byte) 0xD2;
 
-	private static final short MAX_SECRET_COUNT = (short) 63;
+//	TOTO: WTF???? why *of 16
+	private static final short MAX_SECRET_COUNT = (short) 48;
 	private static final short MAX_SECRET_NAME_LENGTH = (short) 20;
 	static final short MAX_SECRET_VALUE_LENGTH = (short) 63;
 
@@ -204,17 +205,23 @@ public class MainApplet extends Applet implements MultiSelectable {
 		short dataLength = apdu.setIncomingAndReceive();
 		switch (dataLength) {
 			case 220:
-				System.arraycopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, 0, 220);
+				myArrayCopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, (short) 0, (short) 220);
 				break;
 			case 200:
-				System.arraycopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, 220, 200);
+				myArrayCopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, (short) 220, (short) 200);
 				break;
 			case 92:
-				System.arraycopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, 420, 92);
+				myArrayCopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, (short) 420, (short) 92);
 				initializeKeys();
 				break;
 			default:
 				ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
+		}
+	}
+
+	private void myArrayCopy(byte[] source, short srcPos, byte[] destination, short destPos, short length){
+		for (short i = 0; i < length; i++) {
+			destination[(short) (destPos + i)] = source[(short) (srcPos + i)];
 		}
 	}
 
@@ -246,10 +253,10 @@ public class MainApplet extends Applet implements MultiSelectable {
 		byte[] partOfKey = new byte[256];
 
 		if(apduBuffer[ISO7816.OFFSET_CDATA] == 1){
-			partOfKey = Arrays.copyOfRange(aesKeyEncrypted, 0, 256);
+			myArrayCopy(aesKeyEncrypted, ISO7816.OFFSET_CLA, partOfKey, (short) 0, (short) 256);
 		}
 		else if (apduBuffer[ISO7816.OFFSET_CDATA] == 2) {
-			partOfKey = Arrays.copyOfRange(aesKeyEncrypted, 256, aesKeyEncrypted.length);
+			myArrayCopy(aesKeyEncrypted, (short) 256, partOfKey, (short) 0, (short) 256);
 
 		}
 		apdu.sendBytesLong(partOfKey, (short) 0, (short) partOfKey.length);
