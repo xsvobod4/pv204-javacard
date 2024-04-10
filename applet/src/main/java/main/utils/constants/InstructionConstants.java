@@ -1,7 +1,5 @@
 package main.utils.constants;
 
-import com.sun.org.apache.bcel.internal.generic.PUSH;
-
 public class InstructionConstants {
     // Instruction codes
     public static final short INS_SELECT = (short) 0xA4;

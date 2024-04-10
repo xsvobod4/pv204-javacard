@@ -3,7 +3,6 @@ package main.cardinterface;
 import javacard.framework.ISO7816;
 import main.exceptions.*;
 import main.utils.ApduFactory;
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import javax.smartcardio.*;
 import java.nio.charset.StandardCharsets;
