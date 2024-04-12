@@ -55,6 +55,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 	//stuff connected with secure channel
 	private byte[] rsaKeyBytes;
 	private AESKey aesKey;
+	private RSAPublicKey rsaPublicKey;
 	private Cipher rsaCipher;
 	private byte[] aesKeyEncrypted;
 	private Cipher aesCipherEnc;
@@ -221,7 +222,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 	}
 
 	private void initializeKeys(){
-		RSAPublicKey rsaPublicKey = (RSAPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_RSA_PUBLIC, RSA_MODULUS_LENGTH_512, false);
+		rsaPublicKey = (RSAPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_RSA_PUBLIC, RSA_MODULUS_LENGTH_512, false);
 		rsaPublicKey.setModulus(rsaKeyBytes, (short) 0, (short) 512);
 
 		// Generate AES key
@@ -396,6 +397,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 		}
 		// clear key?
 		aesKey.clearKey();
+		rsaPublicKey.clearKey();
 	}
 
 	//TODO: Add value to the SecretStore array and set the secret (at the same index) to filled status
