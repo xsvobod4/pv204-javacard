@@ -1,9 +1,6 @@
 package applet;
 
-import java.util.Arrays;
-
 import javacard.security.*;
-import javacardx.apdu.ExtendedLength;
 import javacardx.crypto.Cipher;
 import javacard.framework.*;
 
@@ -41,7 +38,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 	private final byte[] SECOND_PIN = {(byte) 0x02, (byte) 0x02, (byte) 0x04, (byte) 0x04};
 
 	//PIN1 and PIN2 default offsets
-	private final short[] PIN_DEFAULT_OFFSETS = {0x05, 0x09, 0x09, 0x0D};
+	private final short[] PIN_DEFAULT_OFFSETS = {(short) ISO7816.OFFSET_CDATA, 0x09, 0x09, 0x0D};
 
 	private final byte RTR_PIN_SUCCESS = (byte) 0x90;
 	private final byte RTR_PIN_FAILED = (byte) 0xCF;
@@ -56,7 +53,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 
 	//stuff connected with secure channel
-	private byte[] RSAKeyBytes = new byte[512];
+	private byte[] rsaKeyBytes;
 	private AESKey aesKey;
 	private Cipher rsaCipher;
 	private byte[] aesKeyEncrypted;
@@ -85,6 +82,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 		rsaCipher = Cipher.getInstance(Cipher.ALG_RSA_PKCS1, false);
 		rng = RandomData.getInstance(RandomData.ALG_SECURE_RANDOM);
 		aesKeyEncrypted = new byte[512];
+		rsaKeyBytes = new byte[512];
 
 		secretValues = new SecretStore[MAX_SECRET_COUNT];
 		secretStatus = new byte[MAX_SECRET_COUNT];
@@ -204,14 +202,17 @@ public class MainApplet extends Applet implements MultiSelectable {
 		byte[] apduBuffer = apdu.getBuffer();
 		short dataLength = apdu.setIncomingAndReceive();
 		switch (dataLength) {
-			case 220:
-				myArrayCopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, (short) 0, (short) 220);
+			case (short) 220:
+				//myArrayCopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, (short) 0, (short) 220);
+				Util.arrayCopyNonAtomic(apduBuffer, ISO7816.OFFSET_CDATA, rsaKeyBytes, (short) 0, (short) 220);
 				break;
-			case 200:
-				myArrayCopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, (short) 220, (short) 200);
+			case (short) 200:
+				//myArrayCopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, (short) 220, (short) 200);
+				Util.arrayCopyNonAtomic(apduBuffer, ISO7816.OFFSET_CDATA, rsaKeyBytes, (short) 220, (short) 200);
 				break;
-			case 92:
-				myArrayCopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, (short) 420, (short) 92);
+			case (short) 92:
+				//myArrayCopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, (short) 420, (short) 92);
+				Util.arrayCopyNonAtomic(apduBuffer, ISO7816.OFFSET_CDATA, rsaKeyBytes, (short) 420, (short) 92);
 				initializeKeys();
 				break;
 			default:
@@ -219,15 +220,9 @@ public class MainApplet extends Applet implements MultiSelectable {
 		}
 	}
 
-	private void myArrayCopy(byte[] source, short srcPos, byte[] destination, short destPos, short length){
-		for (short i = 0; i < length; i++) {
-			destination[(short) (destPos + i)] = source[(short) (srcPos + i)];
-		}
-	}
-
 	private void initializeKeys(){
 		RSAPublicKey rsaPublicKey = (RSAPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_RSA_PUBLIC, RSA_MODULUS_LENGTH_512, false);
-		rsaPublicKey.setModulus(RSAKeyBytes, (short) 0, (short) 512);
+		rsaPublicKey.setModulus(rsaKeyBytes, (short) 0, (short) 512);
 
 		// Generate AES key
 		byte[] aesKeyBytes = new byte[AES_KEY_SIZE_BYTES];
@@ -253,11 +248,12 @@ public class MainApplet extends Applet implements MultiSelectable {
 		byte[] partOfKey = new byte[256];
 
 		if(apduBuffer[ISO7816.OFFSET_CDATA] == 1){
-			myArrayCopy(aesKeyEncrypted, ISO7816.OFFSET_CLA, partOfKey, (short) 0, (short) 256);
+			//myArrayCopy(aesKeyEncrypted, ISO7816.OFFSET_CLA, partOfKey, (short) 0, (short) 256);
+			Util.arrayCopyNonAtomic(aesKeyEncrypted, ISO7816.OFFSET_CLA, partOfKey, (short) 0, (short) 256);
 		}
 		else if (apduBuffer[ISO7816.OFFSET_CDATA] == 2) {
-			myArrayCopy(aesKeyEncrypted, (short) 256, partOfKey, (short) 0, (short) 256);
-
+			//myArrayCopy(aesKeyEncrypted, (short) 256, partOfKey, (short) 0, (short) 256);
+			Util.arrayCopyNonAtomic(aesKeyEncrypted, (short) 256, partOfKey, (short) 0, (short) 256);
 		}
 		apdu.sendBytesLong(partOfKey, (short) 0, (short) partOfKey.length);
 	}
@@ -281,22 +277,19 @@ public class MainApplet extends Applet implements MultiSelectable {
 			// Decrypt the data part of the APDU buffer (excluding header)
 			aesCipherDec.doFinal(apduBuffer, ISO7816.OFFSET_CDATA, dataLength, apduBuffer, ISO7816.OFFSET_CDATA);
 
-			// Remove PKCS7 padding from the decrypted data
-			byte[] decryptedData = new byte[dataLength];
-			Util.arrayCopyNonAtomic(apduBuffer, ISO7816.OFFSET_CDATA, decryptedData, (short) 0, dataLength);
-			decryptedData = removePKCS7Padding(decryptedData, dataLength);
-
-			// Update the data in the APDU buffer with the decrypted and unpadded data
-			short newDataLength = (short) decryptedData.length;
-			Util.arrayCopyNonAtomic(decryptedData, (short) 0, apduBuffer, ISO7816.OFFSET_CDATA, newDataLength);
+			// Get padding length
+			short newDataLength = getPKCS7PaddingLen(apduBuffer, dataLength);
 
 			// Update the Lc field in the APDU header with the new data length
 			apduBuffer[ISO7816.OFFSET_LC] = (byte) newDataLength;
 
 			// Clear the remaining bytes in the buffer (padding bytes)
-			for (short i = (short) (ISO7816.OFFSET_CDATA + newDataLength); i < apduBuffer.length; i++) {
-				apduBuffer[i] = 0x00;
-			}
+			Util.arrayFillNonAtomic(apduBuffer,
+					(short) (ISO7816.OFFSET_CDATA + newDataLength),
+					(short) ((short)apduBuffer.length - (short) (ISO7816.OFFSET_CDATA + newDataLength)),
+					(byte) 0x00);
+
+			//apduBuffer = apduBuffer;
 
 		} catch (CryptoException e) {
 			// Handle decryption error
@@ -344,12 +337,12 @@ public class MainApplet extends Applet implements MultiSelectable {
 	}
 
 
-	private byte[] removePKCS7Padding(byte[] data, short dataLength) {
+	private short getPKCS7PaddingLen(byte[] apduBuffer, short dataLength) {
 		// Calculate the last byte, which represents the padding length
-		short paddingLength = (short) (data[(short) (dataLength - 1)] & 0xFF);
+		short paddingLength = (short) (apduBuffer[(short) (dataLength - 1)] & 0xFF);
 
 		// Ensure padding length is valid
-		if (paddingLength <= 0 || paddingLength > 16) { // Assuming each block is 16 bytes
+		if (paddingLength <= (short) 0 || paddingLength > (short) 16) { // Assuming each block is 16 bytes
 			// Padding is incorrect, throw exception or handle accordingly
 			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
 		}
@@ -358,12 +351,12 @@ public class MainApplet extends Applet implements MultiSelectable {
 		short unpaddedLength = (short) (dataLength - paddingLength);
 
 		// Create a new byte array to hold the unpadded data
-		byte[] unpaddedData = new byte[unpaddedLength];
+		//byte[] unpaddedData = new byte[unpaddedLength];
 
 		// Copy the unpadded data from the original buffer
-		Util.arrayCopyNonAtomic(data, (short) 0, unpaddedData, (short) 0, unpaddedLength);
+		//Util.arrayCopyNonAtomic(apduBuffer, ISO7816.OFFSET_CDATA, unpaddedData, (short) 0, unpaddedLength);
 
-		return unpaddedData;
+		return unpaddedLength;
 	}
 
 	private void listSecrets(APDU apdu) {
