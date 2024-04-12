@@ -186,8 +186,8 @@ public class TestingClientApp {
 
         // encrypted reveal secret:
         byte[] DEFAULT_PIN = new byte[]{0x01, 0x02, 0x03, 0x04};
-        byte secretName = (byte) 0x01;
-        byte[] encryptedPIN = secureChannel.encryptAESWithKey(aesKey, DEFAULT_PIN);
+        byte secretName = (byte) 0x02;
+        byte[] encryptedPIN = SecureChannel.encryptAESWithKey(aesKey, DEFAULT_PIN);
         CommandAPDU revealSecretApdu = ApduFactory.genericApdu(
                 (byte) 0x00, // CLA
                 (byte) InstructionConstants.INS_REVEAL_SECRET, // INS_GET_SECRET_VALUE
@@ -198,14 +198,67 @@ public class TestingClientApp {
         // Transmit the APDU command to the JavaCard applet
         ResponseAPDU responseReveal = simulator.transmitCommand(revealSecretApdu);
 
-        byte[] decryptedResponseDataReveal = secureChannel.decryptAESWithKey(aesKey, responseReveal.getData());
+        byte[] decryptedResponseDataReveal = SecureChannel.decryptAESWithKey(aesKey, responseReveal.getData());
         System.out.println("Reveal secret:");
 // Decode the decrypted response using UTF-8 encoding
         String decryptedResponseString = new String(decryptedResponseDataReveal, StandardCharsets.UTF_8);
         System.out.println(decryptedResponseString);
         System.out.println("SW: " + (short) responseReveal.getSW());
 
+        //Store secret
+        byte[] secretToStore = "TEST%SECĚUČÍFFF".getBytes();
+        byte secretNameStore = (byte) 0x0A;
+        byte[] combinedContent = new byte[secretToStore.length + 4];
 
+        Util.arrayCopyNonAtomic(
+                DEFAULT_PIN,
+                (short) 0,
+                combinedContent,
+                (short) 0,
+                (short) 4
+        );
+
+        Util.arrayCopyNonAtomic(
+                secretToStore,
+                (short) 0,
+                combinedContent,
+                (short) 4,
+                (short) secretToStore.length
+        );
+
+        byte[] encryptedContent = SecureChannel.encryptAESWithKey(aesKey, combinedContent);
+        CommandAPDU setSecretApdu = ApduFactory.genericApdu(
+                (byte) 0x00,
+                (byte) InstructionConstants.INS_SET_SECRET,
+                secretNameStore,
+                0x00,
+                encryptedContent
+        );
+
+        // Transmit the APDU command to the JavaCard applet
+        ResponseAPDU setSecretResponse = simulator.transmitCommand(setSecretApdu);
+
+        System.out.println("Set secret");
+        System.out.println("SW: " + (short) setSecretResponse.getSW());
+
+        secretName = secretNameStore;
+        encryptedPIN = SecureChannel.encryptAESWithKey(aesKey, DEFAULT_PIN);
+        revealSecretApdu = ApduFactory.genericApdu(
+                (byte) 0x00, // CLA
+                (byte) InstructionConstants.INS_REVEAL_SECRET, // INS_GET_SECRET_VALUE
+                secretName, // P1
+                (byte) 0x00, // P2
+                encryptedPIN         // Data
+        );
+        // Transmit the APDU command to the JavaCard applet
+        responseReveal = simulator.transmitCommand(revealSecretApdu);
+
+        decryptedResponseDataReveal = SecureChannel.decryptAESWithKey(aesKey, responseReveal.getData());
+        System.out.println("Reveal secret:");
+        // Decode the decrypted response using UTF-8 encoding
+        decryptedResponseString = new String(decryptedResponseDataReveal, StandardCharsets.UTF_8);
+        System.out.println(decryptedResponseString);
+        System.out.println("SW: " + (short) responseReveal.getSW());
     }
 }
 

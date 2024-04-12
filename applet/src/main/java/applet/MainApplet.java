@@ -16,7 +16,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 	static final byte INS_VERIFY_PIN = (byte) 0x1D;
 	static final byte INS_CHANGE_PIN = (byte) 0xC2;
 	private static final byte INS_SC_INIT = (byte) 0xE2;
-	static final byte INS_SET_SECRET = (byte) 0xD3;
+	static final byte INS_SET_SECRET = (byte) 0xC6;
 	private static final byte INS_SC_KEYS_INIT = (byte) 0xE2;
 	private static final byte INS_SC_GET_KEY = (byte) 0xD2;
 
@@ -400,8 +400,11 @@ public class MainApplet extends Applet implements MultiSelectable {
 	private void storeSecret(APDU apdu) {
 
 		byte[] apduBuffer = apdu.getBuffer();
+
+		decryptAPDU(apduBuffer);
+
+		short dataLength = apduBuffer[ISO7816.OFFSET_LC];
 		short index = apduBuffer[ISO7816.OFFSET_P1];
-		short length = apdu.getIncomingLength();
 		byte overwrite = apduBuffer[ISO7816.OFFSET_P2];
 
 		// Verify PIN
@@ -428,7 +431,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 			ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
 		}
 
-		short secretLength = (short) (apdu.getIncomingLength() - (short) PIN_LENGTH);
+		short secretLength = (short) (dataLength - (short) PIN_LENGTH);
 
 		// Check if the value being stored is too long
 		if (secretLength > MAX_SECRET_VALUE_LENGTH) {
@@ -445,6 +448,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 		secretStatus[index] = SECRET_FILLED;
 		secretCount++;
 	}
+
 
 	private void getSecretValue(APDU apdu) {
 		byte[] apduBuffer = apdu.getBuffer();
