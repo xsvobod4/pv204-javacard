@@ -297,9 +297,26 @@ public class MainApplet extends Applet implements MultiSelectable {
 		}
 	}
 
-	private byte[] encryptAPDU(byte[] data) {
+
+	private byte[] encryptData(byte[] data) {
 		try {
-			data = padPKCS7(data);
+
+			short dataLength = (short) data.length;
+
+			//Creates a transient array of the length needed to encrypt the data
+			//Thant means data lenght and padding lenght
+
+			short paddingLength = (short) (AES_KEY_SIZE_BYTES + (( - dataLength) % AES_KEY_SIZE_BYTES));
+
+			byte[] transitentArray = JCSystem.makeTransientByteArray(
+					(short)
+					(dataLength
+					+ paddingLength),
+					JCSystem.CLEAR_ON_DESELECT);
+
+			Util.arrayCopyNonAtomic(data, (short) 0, transitentArray, (short) 0, dataLength);
+
+			padPKCS7(transitentArray, dataLength);
 			// Create AES cipher instance for encryption
 			Cipher aesCipherEnc = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_ECB_NOPAD, false);
 
@@ -307,9 +324,9 @@ public class MainApplet extends Applet implements MultiSelectable {
 			aesCipherEnc.init(aesKey, Cipher.MODE_ENCRYPT);
 
 			// Encrypt the data
-			aesCipherEnc.doFinal(data, (short) 0, (short) data.length, data, (short) 0);
+			aesCipherEnc.doFinal(transitentArray, (short) 0, (short) transitentArray.length, transitentArray, (short) 0);
 
-			return data; // Return the modified data array after encryption
+			return transitentArray; // Return the modified data array after encryption
 		} catch (CryptoException e) {
 			// Handle encryption error
 			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
@@ -317,23 +334,23 @@ public class MainApplet extends Applet implements MultiSelectable {
 		}
 	}
 
-	private byte[] padPKCS7(byte[] data) {
+	private void padPKCS7(byte[] data, short dataLength) {
+
 		// Calculate the number of padding bytes needed
-		short remainder = (short) (data.length % BLOCK_SIZE);
-		short paddingLength = remainder == 0 ? 0 : (short) (BLOCK_SIZE - remainder);
-
-		// Create a new byte array to hold the padded data
-		byte[] paddedData = new byte[(short) (data.length + paddingLength)];
-
-		// Copy the original data to the paddedData array
-		Util.arrayCopyNonAtomic(data, (short) 0, paddedData, (short) 0, (short) data.length);
+		short paddingLength = (short) (AES_KEY_SIZE_BYTES + (( - dataLength) % AES_KEY_SIZE_BYTES));
 
 		// Add padding bytes
-		for (short i = (short) (data.length); i < (short) (data.length + paddingLength); i++) {
-			paddedData[i] = (byte) paddingLength; // Set the padding byte value
-		}
+		//for (short i = (short) (data.length); i < (short) (data.length + paddingLength); i++) {
+		//	paddedData[i] = (byte) paddingLength; // Set the padding byte value
+		//}
 
-		return paddedData;
+		if (paddingLength > 0){
+			Util.arrayFillNonAtomic(
+					data,
+					dataLength,
+					paddingLength,
+					(byte) paddingLength);
+		}
 	}
 
 
@@ -348,15 +365,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 		}
 
 		// Calculate the length of the unpadded data
-		short unpaddedLength = (short) (dataLength - paddingLength);
-
-		// Create a new byte array to hold the unpadded data
-		//byte[] unpaddedData = new byte[unpaddedLength];
-
-		// Copy the unpadded data from the original buffer
-		//Util.arrayCopyNonAtomic(apduBuffer, ISO7816.OFFSET_CDATA, unpaddedData, (short) 0, unpaddedLength);
-
-		return unpaddedLength;
+		return (short) (dataLength - paddingLength);
 	}
 
 	private void listSecrets(APDU apdu) {
@@ -364,14 +373,14 @@ public class MainApplet extends Applet implements MultiSelectable {
 		apdu.setOutgoing();
 		//apdu.setOutgoingLength(MAX_SECRET_COUNT);
 
-		byte[] secretStatusCopy = new byte[MAX_SECRET_COUNT];
-		Util.arrayCopyNonAtomic(secretStatus, (short) 0, secretStatusCopy, (short) 0, MAX_SECRET_COUNT);
-		secretStatusCopy = encryptAPDU(secretStatusCopy); // Encrypt the data and get the modified array
+		//byte[] secretStatusCopy = new byte[MAX_SECRET_COUNT];
+		//Util.arrayCopyNonAtomic(secretStatus, (short) 0, secretStatusCopy, (short) 0, MAX_SECRET_COUNT);
+		byte[] secretStatusCopy = encryptData(secretStatus); // Encrypt the data and get the modified array
 
 		short encryptedLength = (short) secretStatusCopy.length;
 		apdu.setOutgoingLength(encryptedLength); // Set outgoing length to the size of encrypted data
 
-		apdu.sendBytesLong(secretStatusCopy, (short) 0, MAX_SECRET_COUNT);
+		apdu.sendBytesLong(secretStatusCopy, (short) 0, encryptedLength);
 	}
 
 	public boolean select(boolean b) {
@@ -462,13 +471,13 @@ public class MainApplet extends Applet implements MultiSelectable {
 			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
 		}
 
-		 byte[] SecretValue = secretValues[queryKey].secretValue;
+		 byte[] secretValue = secretValues[queryKey].secretValue;
 
-		if (SecretValue == null) {
+		if (secretValue == null) {
 			// Handle the case where encryption failed
 			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
 		}
-		byte[] encryptedSecretValue = encryptAPDU(SecretValue);
+		byte[] encryptedSecretValue = encryptData(secretValue);
 
 		apdu.setOutgoing();
 		apdu.setOutgoingLength( (short) encryptedSecretValue.length);
