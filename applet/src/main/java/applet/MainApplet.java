@@ -225,7 +225,8 @@ public class MainApplet extends Applet implements MultiSelectable {
 		rsaPublicKey.setModulus(rsaKeyBytes, (short) 0, (short) 512);
 
 		// Generate AES key
-		byte[] aesKeyBytes = new byte[AES_KEY_SIZE_BYTES];
+		//byte[] aesKeyBytes = new byte[AES_KEY_SIZE_BYTES];
+		byte[] aesKeyBytes = JCSystem.makeTransientByteArray(AES_KEY_SIZE_BYTES, JCSystem.CLEAR_ON_DESELECT);
 		doGenerateRandom(aesKeyBytes, (short) 0, AES_KEY_SIZE_BYTES);
 		aesKey.setKey(aesKeyBytes, (short) 0);
 
@@ -245,7 +246,8 @@ public class MainApplet extends Applet implements MultiSelectable {
 		apdu.setOutgoing();
 		apdu.setOutgoingLength((short) 256);
 
-		byte[] partOfKey = new byte[256];
+		//byte[] partOfKey = new byte[256];
+		byte[] partOfKey = JCSystem.makeTransientByteArray((short) 256, JCSystem.CLEAR_ON_DESELECT);
 
 		if(apduBuffer[ISO7816.OFFSET_CDATA] == 1){
 			//myArrayCopy(aesKeyEncrypted, ISO7816.OFFSET_CLA, partOfKey, (short) 0, (short) 256);
