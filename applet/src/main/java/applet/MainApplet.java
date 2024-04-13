@@ -275,7 +275,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 			// Compute SHA-256 hash of AES key material
 			MessageDigest sha256 = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, false);
-			sha256.update(keyMaterial, (short) 0, (short) keyMaterial.length);
+//			sha256.update(keyMaterial, (short) 0, (short) keyMaterial.length);
 			byte[] hash = new byte[sha256.getLength()];
 			sha256.doFinal(keyMaterial, (short) 0, (short) keyMaterial.length, hash, (short) 0);
 
