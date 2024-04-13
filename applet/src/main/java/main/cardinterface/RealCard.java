@@ -2,6 +2,7 @@ package main.cardinterface;
 
 import javacard.framework.ISO7816;
 import main.exceptions.*;
+import main.security.JcSecureChannel;
 import main.utils.ApduFactory;
 
 import javax.smartcardio.*;
@@ -13,6 +14,7 @@ public class RealCard implements ICard {
     private Card card;
     private CardChannel channel;
     private String aid;
+    private JcSecureChannel secureChannel;
 
     /**
      * RealCard constructor.
@@ -29,6 +31,9 @@ public class RealCard implements ICard {
         card = terminal.connect("*");
         channel = card.getBasicChannel();
         this.aid = aid;
+
+        secureChannel = new JcSecureChannel();
+        secureChannel.setUpScReal(channel);
     }
 
 
@@ -36,7 +41,7 @@ public class RealCard implements ICard {
     public void sendPin(String pin) {
 
         try {
-            select();
+
             CommandAPDU commandAPDU = ApduFactory.sendPinApdu(pin);
             ResponseAPDU responseAPDU = channel.transmit(commandAPDU);
 
@@ -52,8 +57,7 @@ public class RealCard implements ICard {
     @Override
     public void storeValue(Byte key, String value, String pin, Byte overwrite) {
         try {
-            select();
-            CommandAPDU commandAPDU = ApduFactory.setSecretApdu(key, overwrite, value, pin);
+            CommandAPDU commandAPDU = ApduFactory.setSecretApdu(key, overwrite, value, pin, secureChannel);
             ResponseAPDU responseAPDU = channel.transmit(commandAPDU);
 
             if ((short) responseAPDU.getSW() == ISO7816.SW_WRONG_LENGTH) {
@@ -85,7 +89,6 @@ public class RealCard implements ICard {
     public byte[] getSecretNames() {
 
         try {
-            select();
             CommandAPDU commandAPDU = ApduFactory.requestSecretNamesApdu();
             ResponseAPDU responseAPDU = channel.transmit(commandAPDU);
 
@@ -93,7 +96,7 @@ public class RealCard implements ICard {
                 throw new CardRuntimeException("Failed to get secret names. Card code: " + responseAPDU.getSW());
             }
 
-            return responseAPDU.getData();
+            return secureChannel.decrypt(responseAPDU.getData());
         } catch (CardException e) {
             throw new CardRuntimeException("Card connection problem. Failed to get secret names. Card code: " + e.getMessage());
         }
@@ -107,8 +110,7 @@ public class RealCard implements ICard {
         }
 
         try {
-            select();
-            CommandAPDU commandAPDU = ApduFactory.revealSecretApdu(pin, key);
+            CommandAPDU commandAPDU = ApduFactory.revealSecretApdu(pin, key, secureChannel);
             ResponseAPDU responseAPDU = channel.transmit(commandAPDU);
 
             if ((short) responseAPDU.getSW() == ISO7816.SW_DATA_INVALID) {
@@ -123,7 +125,9 @@ public class RealCard implements ICard {
                 throw new CardRuntimeException("Failed to get secret. Card code: " + responseAPDU.getSW());
             }
 
-            return new String(responseAPDU.getData(), StandardCharsets.UTF_8);
+            byte[] decryptedData = secureChannel.decrypt(responseAPDU.getData());
+
+            return new String(decryptedData, StandardCharsets.UTF_8);
         } catch (CardException e) {
             throw new CardRuntimeException("Card connection problem. Failed to reveal secret. Card code: " + e.getMessage());
         }
@@ -141,8 +145,7 @@ public class RealCard implements ICard {
         }
 
         try {
-            select();
-            CommandAPDU commandAPDU = ApduFactory.changePinApdu(oldPin, newPin);
+            CommandAPDU commandAPDU = ApduFactory.changePinApdu(oldPin, newPin, secureChannel);
             ResponseAPDU responseAPDU = channel.transmit(commandAPDU);
 
             if ((short) responseAPDU.getSW() == ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED) {
@@ -155,21 +158,6 @@ public class RealCard implements ICard {
 
         } catch (CardException e) {
             throw new CardRuntimeException("Card connection problem. Failed to change pin. Card code: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Selects the applet.
-     *
-     * @throws CardException Failed to select the applet
-     */
-    private void select() throws CardException {
-
-        CommandAPDU commandAPDU = ApduFactory.selectAppletApdu(aid);
-        ResponseAPDU responseAPDU = channel.transmit(commandAPDU);
-
-        if ((short) responseAPDU.getSW() != ISO7816.SW_NO_ERROR) {
-            throw new CardRuntimeException("Failed to select applet. Card code: " + (short) responseAPDU.getSW());
         }
     }
 }

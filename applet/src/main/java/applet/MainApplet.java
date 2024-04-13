@@ -275,7 +275,8 @@ public class MainApplet extends Applet implements MultiSelectable {
 			aesCipherDec.init(aesKey, Cipher.MODE_DECRYPT);
 
 			// Get the data length (excluding header)
-			short dataLength = (short) (apduBuffer[ISO7816.OFFSET_LC] & 0xFF);
+			//short dataLength = (short) (apduBuffer[ISO7816.OFFSET_LC] & 0xFF);
+			short dataLength = apduBuffer[ISO7816.OFFSET_LC];
 
 			// Decrypt the data part of the APDU buffer (excluding header)
 			aesCipherDec.doFinal(apduBuffer, ISO7816.OFFSET_CDATA, dataLength, apduBuffer, ISO7816.OFFSET_CDATA);
@@ -301,15 +302,13 @@ public class MainApplet extends Applet implements MultiSelectable {
 	}
 
 
-	private byte[] encryptData(byte[] data) {
+	private byte[] encryptData(byte[] data, short dataLength) {
 		try {
-
-			short dataLength = (short) data.length;
 
 			//Creates a transient array of the length needed to encrypt the data
 			//Thant means data lenght and padding lenght
 
-			short paddingLength = (short) (AES_KEY_SIZE_BYTES + (( - dataLength) % AES_KEY_SIZE_BYTES));
+			short paddingLength = (short) (AES_KEY_SIZE_BYTES + (short) ((short) ( - dataLength) % AES_KEY_SIZE_BYTES));
 
 			byte[] transitentArray = JCSystem.makeTransientByteArray(
 					(short)
@@ -340,7 +339,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 	private void padPKCS7(byte[] data, short dataLength) {
 
 		// Calculate the number of padding bytes needed
-		short paddingLength = (short) (AES_KEY_SIZE_BYTES + (( - dataLength) % AES_KEY_SIZE_BYTES));
+		short paddingLength = (short) (AES_KEY_SIZE_BYTES + (short) ((short)( - dataLength) % AES_KEY_SIZE_BYTES));
 
 		// Add padding bytes
 		//for (short i = (short) (data.length); i < (short) (data.length + paddingLength); i++) {
@@ -359,7 +358,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 	private short getPKCS7PaddingLen(byte[] apduBuffer, short dataLength) {
 		// Calculate the last byte, which represents the padding length
-		short paddingLength = (short) (apduBuffer[(short) (dataLength - 1)] & 0xFF);
+		short paddingLength = (short) (apduBuffer[dataLength] & 0xFF);
 
 		// Ensure padding length is valid
 		if (paddingLength <= (short) 0 || paddingLength > (short) 16) { // Assuming each block is 16 bytes
@@ -378,7 +377,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 		//byte[] secretStatusCopy = new byte[MAX_SECRET_COUNT];
 		//Util.arrayCopyNonAtomic(secretStatus, (short) 0, secretStatusCopy, (short) 0, MAX_SECRET_COUNT);
-		byte[] secretStatusCopy = encryptData(secretStatus); // Encrypt the data and get the modified array
+		byte[] secretStatusCopy = encryptData(secretStatus, MAX_SECRET_COUNT); // Encrypt the data and get the modified array
 
 		short encryptedLength = (short) secretStatusCopy.length;
 		apdu.setOutgoingLength(encryptedLength); // Set outgoing length to the size of encrypted data
@@ -400,7 +399,6 @@ public class MainApplet extends Applet implements MultiSelectable {
 		rsaPublicKey.clearKey();
 	}
 
-	//TODO: Add value to the SecretStore array and set the secret (at the same index) to filled status
 	private void storeSecret(APDU apdu) {
 
 		byte[] apduBuffer = apdu.getBuffer();
@@ -479,13 +477,14 @@ public class MainApplet extends Applet implements MultiSelectable {
 			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
 		}
 
-		 byte[] secretValue = secretValues[queryKey].secretValue;
+		byte[] secretValue = secretValues[queryKey].secretValue;
+		short secretValueLen = secretValues[queryKey].getLength();
 
 		if (secretValue == null) {
 			// Handle the case where encryption failed
 			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
 		}
-		byte[] encryptedSecretValue = encryptData(secretValue);
+		byte[] encryptedSecretValue = encryptData(secretValue, secretValueLen);
 
 		apdu.setOutgoing();
 		apdu.setOutgoingLength( (short) encryptedSecretValue.length);
