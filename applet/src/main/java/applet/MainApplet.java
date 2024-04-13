@@ -19,6 +19,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 	static final byte INS_SET_SECRET = (byte) 0xC6;
 	private static final byte INS_SC_KEYS_INIT = (byte) 0xE2;
 	private static final byte INS_SC_GET_KEY = (byte) 0xD2;
+	private static final byte INS_INTEGRITY_CHECK = (byte) 0xB2;
 
 //	TOTO: WTF???? why *of 16
 	private static final short MAX_SECRET_COUNT = (short) 48;
@@ -168,6 +169,10 @@ public class MainApplet extends Applet implements MultiSelectable {
 				// stateModel.checkAllowedFunction(StateModel.FNC_InitSecureChannel);
 				sendKeyToClient(apdu);
 				break;
+			case INS_INTEGRITY_CHECK:
+				// stateModel.checkAllowedFunction(StateModel.FNC_InitSecureChannel);
+				keyIntegrityCheck(apdu);
+				break;
 			case INS_LIST_SECRETS:
 				// Check if the function is allowed in the current state
 				// stateModel.checkAllowedFunction(StateModel.FNC_lookupSecretNames);
@@ -259,6 +264,28 @@ public class MainApplet extends Applet implements MultiSelectable {
 			Util.arrayCopyNonAtomic(aesKeyEncrypted, (short) 256, partOfKey, (short) 0, (short) 256);
 		}
 		apdu.sendBytesLong(partOfKey, (short) 0, (short) partOfKey.length);
+	}
+
+
+	private void keyIntegrityCheck(APDU apdu) {
+		try {
+			// Extract AES key material
+			byte[] keyMaterial = new byte[AES_KEY_SIZE_BYTES];
+			aesKey.getKey(keyMaterial, (short) 0);
+
+			// Compute SHA-256 hash of AES key material
+			MessageDigest sha256 = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, false);
+			sha256.update(keyMaterial, (short) 0, (short) keyMaterial.length);
+			byte[] hash = new byte[sha256.getLength()];
+			sha256.doFinal(keyMaterial, (short) 0, (short) keyMaterial.length, hash, (short) 0);
+
+			// Send hash value in the APDU response
+			apdu.setOutgoing();
+			apdu.setOutgoingLength((short) hash.length);
+			apdu.sendBytesLong(hash, (short) 0, (short) hash.length);
+		} catch (CryptoException e) {
+			ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+		}
 	}
 
 

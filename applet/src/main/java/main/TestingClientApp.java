@@ -17,6 +17,11 @@ import javax.smartcardio.TerminalFactory;
 import java.nio.charset.StandardCharsets;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Arrays;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+
+import static main.utils.TypeConverter.bytesToHex;
+
 
 public class TestingClientApp {
 
@@ -128,6 +133,7 @@ public class TestingClientApp {
                 Arrays.copyOfRange(modulusBytes, 420, 512)
         );
         simulator.transmitCommand(commandAPDUSCInnit3);
+
         //**************************GET KEY************************
 
         byte[] encAESKey = new byte[512];
@@ -153,14 +159,26 @@ public class TestingClientApp {
         System.arraycopy(responseAPDUSCgetKey2.getData(), 0, encAESKey, 256, 256);
 
 
-
-
         byte[] decryptedAESkey = secureChannel.decryptRSAWithPrivateKey(encAESKey, secureChannel.getRSAPrivateKey());
-
 
         SecretKeySpec aesKey = new SecretKeySpec(decryptedAESkey, "AES");
         System.out.println("Decrypted KEY length: " + decryptedAESkey.length);
         System.out.println("Decrypted KEY: " + new String(decryptedAESkey));
+
+
+        //************************ check key integrity
+
+        CommandAPDU hashTest = new CommandAPDU(0x00, InstructionConstants.INS_INTEGRITY_CHECK, 0x00, 0x00);
+        ResponseAPDU aesHashResult = simulator.transmitCommand(hashTest);
+        byte[] hashData = aesHashResult.getData();
+        System.out.println("integrity check");
+        System.out.println("aes has computed: " + hashData);
+
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] hashMyKey = digest.digest(aesKey.getEncoded());
+
+        System.out.println("Hash computed by Java Card: " + Arrays.toString(hashData));
+        System.out.println("Hash computed locally: " + Arrays.toString(hashMyKey));
 
 
         ////////////////////////// konec ustanovení aes klíče

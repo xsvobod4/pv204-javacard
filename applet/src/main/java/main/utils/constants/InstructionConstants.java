@@ -13,4 +13,5 @@ public class InstructionConstants {
     public static final short INS_INVALID = (short) 0x3C;
     public static final short INS_SC_INIT = (short) 0xE2;
     public static final byte INS_SC_GET_KEY = (byte) 0xD2;
+    public static final byte INS_INTEGRITY_CHECK = (byte) 0xB2;
 }
