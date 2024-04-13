@@ -512,6 +512,8 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 		byte[] apduBuffer = apdu.getBuffer();
 
+		decryptAPDU(apduBuffer);
+
 		if (verifyPIN(apdu,PIN_DEFAULT_OFFSETS[0], PIN_DEFAULT_OFFSETS[1]) != RTR_PIN_SUCCESS)
 			ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
 

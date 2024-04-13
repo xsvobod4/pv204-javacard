@@ -5,22 +5,16 @@ import com.licel.jcardsim.smartcardio.CardSimulator;
 import com.licel.jcardsim.utils.AIDUtil;
 import javacard.framework.AID;
 import javacard.framework.Util;
+import main.security.SecureChannel;
 import main.utils.ApduFactory;
-import main.utils.TypeConverter;
 import main.utils.constants.InstructionConstants;
 import main.utils.constants.ReturnMsgConstants;
 
-import javax.crypto.Cipher;
-import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 import javax.smartcardio.TerminalFactory;
 import java.nio.charset.StandardCharsets;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Arrays;
 
@@ -241,8 +235,23 @@ public class TestingClientApp {
         System.out.println("Set secret");
         System.out.println("SW: " + (short) setSecretResponse.getSW());
 
+        //Change PIN
+        byte[] pinConcat = new byte[]{0x01, 0x02, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00};
+        byte[] encryptedPinChange = SecureChannel.encryptAESWithKey(aesKey, pinConcat);
+        CommandAPDU changePinApdu = ApduFactory.genericApdu(
+                (byte) 0x00, // CLA
+                (byte) InstructionConstants.INS_CHANGE_PIN, // INS_GET_SECRET_VALUE
+                (byte) 0x00, // P1
+                (byte) 0x00, // P2
+                encryptedPinChange // Data
+        );
+
+        responseReveal = simulator.transmitCommand(changePinApdu);
+        System.out.println("Pin change:");
+        System.out.println("SW: " + (short) responseReveal.getSW());
+
         secretName = secretNameStore;
-        encryptedPIN = SecureChannel.encryptAESWithKey(aesKey, DEFAULT_PIN);
+        encryptedPIN = SecureChannel.encryptAESWithKey(aesKey, new byte[]{0x00, 0x00, 0x00, 0x00});
         revealSecretApdu = ApduFactory.genericApdu(
                 (byte) 0x00, // CLA
                 (byte) InstructionConstants.INS_REVEAL_SECRET, // INS_GET_SECRET_VALUE
