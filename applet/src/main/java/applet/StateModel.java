@@ -13,27 +13,29 @@ public class StateModel {
 
     // States constants
     public static final short STATE_UNSPECIFIED                         = (short) 0xF0F0;
-    public static final short CHANNEL_NONE                              = (short) 0x75DB; // 0111010111011011
-    public static final short SECURE_CHANNEL_ESTABLISHED                = (short) 0x51ED; // 0101000111101101
+    public static final short KEY_AES_SEND                              = (short) 0xD9B6; // 1101100110110110
+    public static final short KEY_RSA_0_PARTS_RECEIVED                  = (short) 0xDB48; // 1101101101001000
+    public static final short KEY_RSA_1_PARTS_RECEIVED                  = (short) 0x03C5; // 0000001111000101
+    public static final short KEY_RSA_2_PARTS_RECEIVED                  = (short) 0x2942; // 0010100101000010
+    public static final short KEY_RSA_WHOLE_ESTABLISHED                 = (short) 0xC234; // 1100001000110100
     public static final short STATE_APPLET_UPLOADED                     = (short) 0x546E; // 0101010001101110
     public static final short STATE_CARD_BLOCKED                        = (short) 0x4379; // 0100001101111001
-    public static final short STATE_GENERATE_KEYPAIR                    = (short) 0x79D4; // 0111100111010100
-    public static final short STATE_PRIVILEGED                          = (short) 0xF897; // 1111100010010111
-    public static final short STATE_PUK_REQUESTED                       = (short) 0x980B; // 1001100000001011
-    public static final short STATE_UNPRIVILEGED                        = (short) 0x0ED3; // 0000111011010011
+    public static final short STATE_KEYS_GENERATED                      = (short) 0x8E75; // 1000111001110101
+    public static final short STATE_SECURE_CHANNEL_ESTABLISHED          = (short) 0xCADB; // 1100101011011011
+    public static final short STATE_SECURE_RESPONSE_SEND                = (short) 0xB2BE; // 1011001010111110
 
     // Functions constants
-    public static final short FNC_blockCard                             = (short) 0x0AAB; // 0000101010101011
-    public static final short FNC_changePin                             = (short) 0x1556; // 0001010101010110
-    public static final short FNC_generateKeyPair                       = (short) 0x2001; // 0010000000000001
-    public static final short FNC_install                               = (short) 0x2AAC; // 0010101010101100
-    public static final short FNC_lookupSecret                          = (short) 0x3557; // 0011010101010111
-    public static final short FNC_lookupSecretNames                     = (short) 0x4002; // 0100000000000010
-    public static final short FNC_reset                                 = (short) 0x4AAD; // 0100101010101101
-    public static final short FNC_storeSecret                           = (short) 0x5558; // 0101010101011000
-    public static final short FNC_verifyPin                             = (short) 0x6003; // 0110000000000011
-    public static final short FNC_verifyPuk                             = (short) 0x6AAE; // 0110101010101110
-    public static final short FNC_wrongPin                              = (short) 0x7559; // 0111010101011001
+    public static final short FNC_block                                 = (short) 0x0AAB; // 0000101010101011
+    public static final short FNC_deselect                              = (short) 0x1556; // 0001010101010110
+    public static final short FNC_getSecretValue                        = (short) 0x2001; // 0010000000000001
+    public static final short FNC_initSecureChannelKeys                 = (short) 0x2AAC; // 0010101010101100
+    public static final short FNC_initializeKeys                        = (short) 0x3557; // 0011010101010111
+    public static final short FNC_listSecrets                           = (short) 0x4002; // 0100000000000010
+    public static final short FNC_sendKeyToClient                       = (short) 0x4AAD; // 0100101010101101
+    public static final short FNC_sendState                             = (short) 0x5558; // 0101010101011000
+    public static final short FNC_storeSecret                           = (short) 0x6003; // 0110000000000011
+    public static final short FNC_updatePIN                             = (short) 0x6AAE; // 0110101010101110
+    public static final short FNC_verifyPIN                             = (short) 0x7559; // 0111010101011001
 
 
     private short STATE_CURRENT = STATE_UNSPECIFIED;
@@ -49,7 +51,7 @@ public class StateModel {
         // Check allowed function in current state
         checkAllowedFunction(requestedFnc, STATE_CURRENT);
         // // Check secondary state (if required)
-        // checkAllowedFunctionSecondary(requestedFnc, STATE_SECONDARY);
+        checkAllowedFunctionSecondary(requestedFnc, STATE_SECONDARY);
     }
 
     public short changeState(short newState) {
@@ -58,7 +60,7 @@ public class StateModel {
         STATE_PREVIOUS = prevState;
         return STATE_CURRENT;
     }
-    /** WARNING: this function forces new state despite the state model.**/ 
+    /** WARNING: this function forces new state despite the state model.**/
     public short forceChangeState(short newState) {
         STATE_PREVIOUS = STATE_CURRENT;
         STATE_CURRENT = newState;
@@ -73,6 +75,10 @@ public class StateModel {
         return STATE_CURRENT;
     }
 
+    public short getSecondaryState() {
+        return STATE_SECONDARY;
+    }
+
     public short getPreviousState() {
         return STATE_PREVIOUS;
     }
@@ -81,67 +87,81 @@ public class StateModel {
         // Check for functions which can be called from any state
         switch (requestedFnc) {
             // case FNC_someFunction:  return;    // enable if FNC_someFunction can be called from any state (typical for cleaning instructions)
-            case FNC_blockCard:  return;
+            case FNC_block:  return;
+            case FNC_sendState:  return;
         }
 
         // Check if function can be called from current state
         switch (currentState) {
             case STATE_APPLET_UPLOADED:
-                if (requestedFnc == FNC_install) return;
+                if (requestedFnc == FNC_initSecureChannelKeys) return;
                 CardRuntimeException.throwIt(SW_FUNCTINNOTALLOWED); // if reached, function is not allowed in given state
                 break;
-            case STATE_GENERATE_KEYPAIR:
-                if (requestedFnc == FNC_generateKeyPair) return;
+            case STATE_KEYS_GENERATED:
+                if (requestedFnc == FNC_initSecureChannelKeys) return;
+                if (requestedFnc == FNC_initializeKeys) return;
+                if (requestedFnc == FNC_sendKeyToClient) return;
                 CardRuntimeException.throwIt(SW_FUNCTINNOTALLOWED); // if reached, function is not allowed in given state
                 break;
-            case STATE_PRIVILEGED:
-                if (requestedFnc == FNC_blockCard) return;
-                if (requestedFnc == FNC_changePin) return;
-                if (requestedFnc == FNC_lookupSecret) return;
-                if (requestedFnc == FNC_reset) return;
-                CardRuntimeException.throwIt(SW_FUNCTINNOTALLOWED); // if reached, function is not allowed in given state
-                break;
-            case STATE_PUK_REQUESTED:
-                if (requestedFnc == FNC_blockCard) return;
-                if (requestedFnc == FNC_verifyPuk) return;
-                CardRuntimeException.throwIt(SW_FUNCTINNOTALLOWED); // if reached, function is not allowed in given state
-                break;
-            case STATE_UNPRIVILEGED:
-                if (requestedFnc == FNC_lookupSecretNames) return;
+            case STATE_SECURE_CHANNEL_ESTABLISHED:
+                if (requestedFnc == FNC_getSecretValue) return;
+                if (requestedFnc == FNC_listSecrets) return;
                 if (requestedFnc == FNC_storeSecret) return;
-                if (requestedFnc == FNC_verifyPin) return;
-                if (requestedFnc == FNC_wrongPin) return;
+                if (requestedFnc == FNC_updatePIN) return;
+                if (requestedFnc == FNC_verifyPIN) return;
+                CardRuntimeException.throwIt(SW_FUNCTINNOTALLOWED); // if reached, function is not allowed in given state
+                break;
+            case STATE_SECURE_RESPONSE_SEND:
+                if (requestedFnc == FNC_deselect) return;
                 CardRuntimeException.throwIt(SW_FUNCTINNOTALLOWED); // if reached, function is not allowed in given state
                 break;
             default:
                 CardRuntimeException.throwIt(SW_UNKNOWNSTATE);
                 break;
-       }
+        }
     }
 
     private static void checkAllowedFunctionSecondary(short requestedFnc, short currentSecondaryState) {
         // Check for functions which can be called from any state
         switch (requestedFnc) {
             // case FNC_someFunction:  return;    // enable if FNC_someFunction can be called from any state (typical for cleaning instructions)
-            case FNC_blockCard:  return;
+            case FNC_block:  return;
+            case FNC_sendState:  return;
         }
 
         // Check if function can be called from current state
         switch (currentSecondaryState) {
-            case CHANNEL_NONE:
-                if (requestedFnc == FNC_blockCard) return;
-                if (requestedFnc == FNC_install) return;
-                if (requestedFnc == FNC_reset) return;
+            case KEY_AES_SEND:
+                if (requestedFnc == FNC_getSecretValue) return;
+                if (requestedFnc == FNC_initSecureChannelKeys) return;
+                if (requestedFnc == FNC_listSecrets) return;
+                if (requestedFnc == FNC_storeSecret) return;
+                if (requestedFnc == FNC_updatePIN) return;
+                if (requestedFnc == FNC_verifyPIN) return;
                 CardRuntimeException.throwIt(SW_FUNCTINNOTALLOWED); // if reached, function is not allowed in given state
                 break;
-            case SECURE_CHANNEL_ESTABLISHED:
-                if (requestedFnc == FNC_generateKeyPair) return;
+            case KEY_RSA_0_PARTS_RECEIVED:
+                if (requestedFnc == FNC_initSecureChannelKeys) return;
+                CardRuntimeException.throwIt(SW_FUNCTINNOTALLOWED); // if reached, function is not allowed in given state
+                break;
+            case KEY_RSA_1_PARTS_RECEIVED:
+                if (requestedFnc == FNC_initSecureChannelKeys) return;
+                CardRuntimeException.throwIt(SW_FUNCTINNOTALLOWED); // if reached, function is not allowed in given state
+                break;
+            case KEY_RSA_2_PARTS_RECEIVED:
+                if (requestedFnc == FNC_initSecureChannelKeys) return;
+                if (requestedFnc == FNC_initializeKeys) return;
+                CardRuntimeException.throwIt(SW_FUNCTINNOTALLOWED); // if reached, function is not allowed in given state
+                break;
+            case KEY_RSA_WHOLE_ESTABLISHED:
+                if (requestedFnc == FNC_initSecureChannelKeys) return;
+                if (requestedFnc == FNC_sendKeyToClient) return;
                 CardRuntimeException.throwIt(SW_FUNCTINNOTALLOWED); // if reached, function is not allowed in given state
                 break;
             default:
                 CardRuntimeException.throwIt(SW_UNKNOWNSTATE);
                 break;
-       }
+        }
     }
 
     private static short changeState(short currentState, short newState) {
@@ -153,36 +173,28 @@ public class StateModel {
 
         switch (currentState) {
             case STATE_APPLET_UPLOADED:
-                if (newState == STATE_GENERATE_KEYPAIR) return newState;
+                if (newState == STATE_KEYS_GENERATED) return newState;
                 CardRuntimeException.throwIt(SW_INCORRECTSTATETRANSITION); // if reached, transition is not allowed
                 break;
-            case STATE_GENERATE_KEYPAIR:
-                if (newState == STATE_UNPRIVILEGED) return newState;
+            case STATE_KEYS_GENERATED:
+                if (newState == STATE_KEYS_GENERATED) return newState;
+                if (newState == STATE_SECURE_CHANNEL_ESTABLISHED) return newState;
                 CardRuntimeException.throwIt(SW_INCORRECTSTATETRANSITION); // if reached, transition is not allowed
                 break;
-            case STATE_PRIVILEGED:
+            case STATE_SECURE_CHANNEL_ESTABLISHED:
+                if (newState == STATE_SECURE_RESPONSE_SEND) return newState;
+                CardRuntimeException.throwIt(SW_INCORRECTSTATETRANSITION); // if reached, transition is not allowed
+                break;
+            case STATE_SECURE_RESPONSE_SEND:
                 if (newState == STATE_APPLET_UPLOADED) return newState;
-                if (newState == STATE_CARD_BLOCKED) return newState;
-                if (newState == STATE_UNPRIVILEGED) return newState;
-                CardRuntimeException.throwIt(SW_INCORRECTSTATETRANSITION); // if reached, transition is not allowed
-                break;
-            case STATE_PUK_REQUESTED:
-                if (newState == STATE_CARD_BLOCKED) return newState;
-                if (newState == STATE_PRIVILEGED) return newState;
-                CardRuntimeException.throwIt(SW_INCORRECTSTATETRANSITION); // if reached, transition is not allowed
-                break;
-            case STATE_UNPRIVILEGED:
-                if (newState == STATE_PRIVILEGED) return newState;
-                if (newState == STATE_PUK_REQUESTED) return newState;
-                if (newState == STATE_UNPRIVILEGED) return newState;
                 CardRuntimeException.throwIt(SW_INCORRECTSTATETRANSITION); // if reached, transition is not allowed
                 break;
             default:
                 CardRuntimeException.throwIt(SW_UNKNOWNSTATE);
                 break;
-       }
-       CardRuntimeException.throwIt(SW_INCORRECTSTATETRANSITION); // if reached, transition is not allowed
-       return newState;
+        }
+        CardRuntimeException.throwIt(SW_INCORRECTSTATETRANSITION); // if reached, transition is not allowed
+        return newState;
     }
 
 }
