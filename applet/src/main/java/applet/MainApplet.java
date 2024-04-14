@@ -5,10 +5,6 @@ import javacardx.crypto.Cipher;
 import javacard.framework.*;
 
 public class MainApplet extends Applet implements MultiSelectable {
-	/**
-	 * TODO: fix state model (secondary state check) - teď zakomentován, protože neprošlo nic
-	 *
-	 * */
 
 	private static final byte INS_LIST_SECRETS = (byte) 0xD7;
 	private static final byte INS_GET_SECRET_VALUE = (byte) 0x11;
@@ -20,7 +16,6 @@ public class MainApplet extends Applet implements MultiSelectable {
 	private static final byte INS_SC_KEYS_INIT = (byte) 0xE2;
 	private static final byte INS_SC_GET_KEY = (byte) 0xD2;
 
-//	TOTO: WTF???? why *of 16
 	private static final short MAX_SECRET_COUNT = (short) 48;
 	private static final short MAX_SECRET_NAME_LENGTH = (short) 20;
 	static final short MAX_SECRET_VALUE_LENGTH = (short) 63;
@@ -156,12 +151,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 		secretStatus[(short) 0x02] = SECRET_FILLED;
 		secretCount++;
 
-		// more state changes just for demo purposes
-		// stateModel.setSecondaryState(StateModel.SECURE_CHANNEL_ESTABLISHED);
-		stateModel.changeState(StateModel.STATE_GENERATE_KEYPAIR);
-		stateModel.changeState(StateModel.STATE_UNPRIVILEGED);
-		// change to new state - STATE_WAIT_SC_INIT, only INIT request with Kpub can be processed
-
+		stateModel.setSecondaryState(StateModel.KEY_RSA_0_PARTS_RECEIVED);
 		register();
 	}
 
@@ -174,48 +164,48 @@ public class MainApplet extends Applet implements MultiSelectable {
 		// short dataLength = apdu.setIncomingAndReceive();
 		byte ins = apduBuffer[ISO7816.OFFSET_INS];
 
-		// TODO: doladit tuhle logiku s pomocí state enforceru:
-		//if key is empty and INS = ISN_INIT_SC -> proceed to switch, it is ok
-		//if key is empty and INS =/= ISN_INIT_SC -> throw exception
-		//if key is not empty and INS is ISN_INIT_SC -> proceed to switch, it is ok
-		//if key not empty and ins is not ISN_INIT_SC: decrypt whole apdu buffer and proceeds to switch
-
-
 		switch (ins) {
 			case INS_SC_KEYS_INIT:
-				// stateModel.checkAllowedFunction(StateModel.FNC_InitSecureChannel);
+				stateModel.checkAllowedFunction(StateModel.FNC_initSecureChannelKeys);
 				initSecureChannelKeys(apdu);
-				// TODO: stateModel.changeSTATE - to new state where it can only accept INS_SC_INIT or ENCRYPTED APDUs
+				stateModel.changeState(StateModel.STATE_KEYS_GENERATED);
 				break;
 			case INS_SC_GET_KEY:
-				// stateModel.checkAllowedFunction(StateModel.FNC_InitSecureChannel);
+				stateModel.checkAllowedFunction(StateModel.FNC_sendKeyToClient);
 				sendKeyToClient(apdu);
+				if (stateModel.getSecondaryState() == StateModel.KEY_AES_SEND){
+					stateModel.changeState(StateModel.STATE_SECURE_CHANNEL_ESTABLISHED);
+				}
 				break;
 			case INS_LIST_SECRETS:
-				// Check if the function is allowed in the current state
-				// stateModel.checkAllowedFunction(StateModel.FNC_lookupSecretNames);
-				// decryptAPDU(apduBuffer);
+				stateModel.checkAllowedFunction(StateModel.FNC_listSecrets);
 				listSecrets(apdu);
+				// stateModel.changeState(StateModel.STATE_SECURE_RESPONSE_SEND);
 				break;
 			case INS_GET_SECRET_VALUE:
-				// demo - change state to priviledged
-//				stateModel.changeState(StateModel.STATE_PRIVILEGED);
-//				// Check if the function is allowed in the current state
-//				stateModel.checkAllowedFunction(StateModel.FNC_lookupSecret);
+				stateModel.checkAllowedFunction(StateModel.FNC_getSecretValue);
 				getSecretValue(apdu);
+				// stateModel.changeState(StateModel.STATE_SECURE_RESPONSE_SEND);
 				break;
 			case INS_GET_STATE:
 				// Return the current state of the applet
+				stateModel.checkAllowedFunction(StateModel.FNC_sendState);
 				sendState(apdu);
 				break;
 			case INS_SET_SECRET:
+				stateModel.checkAllowedFunction(StateModel.FNC_storeSecret);
 				storeSecret(apdu);
+				// stateModel.changeState(StateModel.STATE_SECURE_RESPONSE_SEND);
 				break;
 			case INS_CHANGE_PIN:
+				stateModel.checkAllowedFunction(StateModel.FNC_updatePIN);
 				updatePIN(apdu);
+				//stateModel.changeState(StateModel.STATE_SECURE_RESPONSE_SEND);
 				break;
 			case INS_VERIFY_PIN:
+				stateModel.checkAllowedFunction(StateModel.FNC_verifyPIN);
 				verifyPIN(apdu,(short) 5, (short) 9);
+				//stateModel.changeState(StateModel.STATE_SECURE_RESPONSE_SEND);
 				break;
 			default:
 				ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
@@ -229,11 +219,30 @@ public class MainApplet extends Applet implements MultiSelectable {
 			case (short) 220:
 				//myArrayCopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, (short) 0, (short) 220);
 				Util.arrayCopyNonAtomic(apduBuffer, ISO7816.OFFSET_CDATA, rsaKeyBytes, (short) 0, (short) 220);
+				if (stateModel.getSecondaryState() == StateModel.KEY_RSA_0_PARTS_RECEIVED){
+					stateModel.setSecondaryState(StateModel.KEY_RSA_1_PARTS_RECEIVED);
+				}
+				else{
+					stateModel.setSecondaryState(StateModel.KEY_RSA_0_PARTS_RECEIVED);
+				}
 				break;
 			case (short) 36:
 				//myArrayCopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, (short) 220, (short) 200);
 				Util.arrayCopyNonAtomic(apduBuffer, ISO7816.OFFSET_CDATA, rsaKeyBytes, (short) 220, (short) 36);
+				if (stateModel.getSecondaryState() == StateModel.KEY_RSA_1_PARTS_RECEIVED){
+					stateModel.setSecondaryState(StateModel.KEY_RSA_2_PARTS_RECEIVED);
+				}
+				else{
+					stateModel.setSecondaryState(StateModel.KEY_RSA_0_PARTS_RECEIVED);
+				}
+				stateModel.checkAllowedFunction(StateModel.FNC_initializeKeys);
 				initializeKeys();
+				if (stateModel.getSecondaryState() == StateModel.KEY_RSA_2_PARTS_RECEIVED){
+					stateModel.setSecondaryState(StateModel.KEY_RSA_WHOLE_ESTABLISHED);
+				}
+				else{
+					stateModel.setSecondaryState(StateModel.KEY_RSA_0_PARTS_RECEIVED);
+				}
 				break;
 			default:
 				ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
@@ -278,6 +287,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 			}
 
 			apdu.sendBytesLong(partOfKey, (short) 0, (short) partOfKey.length);
+			stateModel.setSecondaryState(StateModel.KEY_AES_SEND);
 		} catch (NegativeArraySizeException | SystemException e) {
 			ISOException.throwIt((short) 1111);
 		}
