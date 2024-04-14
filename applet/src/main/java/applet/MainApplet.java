@@ -134,9 +134,9 @@ public class MainApplet extends Applet implements MultiSelectable {
 		secretCount++;
 
 		// more state changes just for demo purposes
-		// stateModel.setSecondaryState(StateModel.SECURE_CHANNEL_ESTABLISHED);
-		stateModel.changeState(StateModel.STATE_GENERATE_KEYPAIR);
-		stateModel.changeState(StateModel.STATE_UNPRIVILEGED);
+		stateModel.setSecondaryState(StateModel.KEY_RSA_0_PARTS_RECEIVED);
+		// stateModel.changeState(StateModel.STATE_GENERATE_KEYPAIR);
+		//stateModel.changeState(StateModel.STATE_UNPRIVILEGED);
 		// change to new state - STATE_WAIT_SC_INIT, only INIT request with Kpub can be processed
 
 		register();
@@ -160,39 +160,45 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 		switch (ins) {
 			case INS_SC_KEYS_INIT:
-				// stateModel.checkAllowedFunction(StateModel.FNC_InitSecureChannel);
+				stateModel.checkAllowedFunction(StateModel.FNC_initSecureChannelKeys);
 				initSecureChannelKeys(apdu);
-				// TODO: stateModel.changeSTATE - to new state where it can only accept INS_SC_INIT or ENCRYPTED APDUs
+				stateModel.changeState(StateModel.STATE_KEYS_GENERATED);
 				break;
 			case INS_SC_GET_KEY:
-				// stateModel.checkAllowedFunction(StateModel.FNC_InitSecureChannel);
+				stateModel.checkAllowedFunction(StateModel.FNC_sendKeyToClient);
 				sendKeyToClient(apdu);
+				// stateModel.changeState(StateModel.STATE_SECURE_CHANNEL_ESTABLISHED); it is changed within the function
 				break;
 			case INS_LIST_SECRETS:
 				// Check if the function is allowed in the current state
-				// stateModel.checkAllowedFunction(StateModel.FNC_lookupSecretNames);
-				// decryptAPDU(apduBuffer);
+				stateModel.checkAllowedFunction(StateModel.FNC_listSecrets);
 				listSecrets(apdu);
+				// stateModel.changeState(StateModel.STATE_SECURE_RESPONSE_SEND);
 				break;
 			case INS_GET_SECRET_VALUE:
-				// demo - change state to priviledged
-//				stateModel.changeState(StateModel.STATE_PRIVILEGED);
-//				// Check if the function is allowed in the current state
-//				stateModel.checkAllowedFunction(StateModel.FNC_lookupSecret);
+				stateModel.checkAllowedFunction(StateModel.FNC_getSecretValue);
 				getSecretValue(apdu);
+				// stateModel.changeState(StateModel.STATE_SECURE_RESPONSE_SEND);
 				break;
 			case INS_GET_STATE:
 				// Return the current state of the applet
+				stateModel.checkAllowedFunction(StateModel.FNC_sendState);
 				sendState(apdu);
 				break;
 			case INS_SET_SECRET:
+				stateModel.checkAllowedFunction(StateModel.FNC_storeSecret);
 				storeSecret(apdu);
+				// stateModel.changeState(StateModel.STATE_SECURE_RESPONSE_SEND);
 				break;
 			case INS_CHANGE_PIN:
+				stateModel.checkAllowedFunction(StateModel.FNC_updatePIN);
 				updatePIN(apdu);
+				//stateModel.changeState(StateModel.STATE_SECURE_RESPONSE_SEND);
 				break;
 			case INS_VERIFY_PIN:
+				stateModel.checkAllowedFunction(StateModel.FNC_verifyPIN);
 				verifyPIN(apdu,(short) 5, (short) 9);
+				//stateModel.changeState(StateModel.STATE_SECURE_RESPONSE_SEND);
 				break;
 			default:
 				ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
@@ -206,15 +212,20 @@ public class MainApplet extends Applet implements MultiSelectable {
 			case (short) 220:
 				//myArrayCopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, (short) 0, (short) 220);
 				Util.arrayCopyNonAtomic(apduBuffer, ISO7816.OFFSET_CDATA, rsaKeyBytes, (short) 0, (short) 220);
+				stateModel.setSecondaryState(StateModel.KEY_RSA_1_PARTS_RECEIVED);
 				break;
 			case (short) 200:
 				//myArrayCopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, (short) 220, (short) 200);
 				Util.arrayCopyNonAtomic(apduBuffer, ISO7816.OFFSET_CDATA, rsaKeyBytes, (short) 220, (short) 200);
+				stateModel.setSecondaryState(StateModel.KEY_RSA_2_PARTS_RECEIVED);
 				break;
 			case (short) 92:
 				//myArrayCopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, (short) 420, (short) 92);
 				Util.arrayCopyNonAtomic(apduBuffer, ISO7816.OFFSET_CDATA, rsaKeyBytes, (short) 420, (short) 92);
+				stateModel.setSecondaryState(StateModel.KEY_RSA_3_PARTS_RECEIVED);
+				stateModel.checkAllowedFunction(StateModel.FNC_initializeKeys);
 				initializeKeys();
+				stateModel.setSecondaryState(StateModel.KEY_RSA_WHOLE_ESTABLISHED);
 				break;
 			default:
 				ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
@@ -257,6 +268,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 		else if (apduBuffer[ISO7816.OFFSET_CDATA] == 2) {
 			//myArrayCopy(aesKeyEncrypted, (short) 256, partOfKey, (short) 0, (short) 256);
 			Util.arrayCopyNonAtomic(aesKeyEncrypted, (short) 256, partOfKey, (short) 0, (short) 256);
+			stateModel.changeState(StateModel.STATE_SECURE_CHANNEL_ESTABLISHED);
 		}
 		apdu.sendBytesLong(partOfKey, (short) 0, (short) partOfKey.length);
 	}
@@ -392,7 +404,7 @@ public class MainApplet extends Applet implements MultiSelectable {
 	public void deselect(boolean b) {
 
 		if (stateModel.getState() != StateModel.STATE_APPLET_UPLOADED) {
-			stateModel.changeState(StateModel.STATE_UNPRIVILEGED);
+			stateModel.changeState(StateModel.STATE_APPLET_UPLOADED);
 		}
 		// clear key?
 		aesKey.clearKey();
