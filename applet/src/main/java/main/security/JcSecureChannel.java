@@ -56,18 +56,7 @@ public class JcSecureChannel implements ICipher {
         }
 
         apdu = ApduFactory.sendKeyApdu(
-                Arrays.copyOfRange(modulusBytes, 220, 420)
-        );
-
-        response = channel.transmit(apdu);
-
-        if ((short) response.getSW() != ISO7816.SW_NO_ERROR) {
-            throw new CardRuntimeException("Error sending RSA pubkey to card. SW: "
-                    + (short) response.getSW());
-        }
-
-        apdu = ApduFactory.sendKeyApdu(
-                Arrays.copyOfRange(modulusBytes, 420, 512)
+                Arrays.copyOfRange(modulusBytes, 220, 256)
         );
 
         response = channel.transmit(apdu);
@@ -78,20 +67,11 @@ public class JcSecureChannel implements ICipher {
         }
 
         //**************************GET KEY************************
-        byte[] encKey = new byte[512];
+        byte[] encKey = new byte[256];
 
         apdu = ApduFactory.requestSymKey((byte) 0x01);
         response = channel.transmit(apdu);
         System.arraycopy(response.getData(), 0, encKey, 0, 256);
-
-        if ((short) response.getSW() != ISO7816.SW_NO_ERROR) {
-            throw new CardRuntimeException("Error receiving AES key. SW: "
-                    + (short) response.getSW());
-        }
-
-        apdu = ApduFactory.requestSymKey((byte) 0x02);
-        response = channel.transmit(apdu);
-        System.arraycopy(response.getData(), 0, encKey, 256, 256);
 
         if ((short) response.getSW() != ISO7816.SW_NO_ERROR) {
             throw new CardRuntimeException("Error receiving AES key. SW: "
@@ -124,18 +104,7 @@ public class JcSecureChannel implements ICipher {
         }
 
         apdu = ApduFactory.sendKeyApdu(
-                Arrays.copyOfRange(modulusBytes, 220, 420)
-        );
-
-        response = simulator.transmitCommand(apdu);
-
-        if ((short) response.getSW() != ISO7816.SW_NO_ERROR) {
-            throw new CardRuntimeException("Error sending RSA pubkey to card. SW: "
-                    + (short) response.getSW());
-        }
-
-        apdu = ApduFactory.sendKeyApdu(
-                Arrays.copyOfRange(modulusBytes, 420, 512)
+                Arrays.copyOfRange(modulusBytes, 220, 256)
         );
 
         response = simulator.transmitCommand(apdu);
@@ -146,20 +115,11 @@ public class JcSecureChannel implements ICipher {
         }
 
         //**************************GET KEY************************
-        byte[] encKey = new byte[512];
+        byte[] encKey = new byte[256];
 
         apdu = ApduFactory.requestSymKey((byte) 0x01);
         response = simulator.transmitCommand(apdu);
         System.arraycopy(response.getData(), 0, encKey, 0, 256);
-
-        if ((short) response.getSW() != ISO7816.SW_NO_ERROR) {
-            throw new CardRuntimeException("Error receiving AES key. SW: "
-                    + (short) response.getSW());
-        }
-
-        apdu = ApduFactory.requestSymKey((byte) 0x02);
-        response = simulator.transmitCommand(apdu);
-        System.arraycopy(response.getData(), 0, encKey, 256, 256);
 
         if ((short) response.getSW() != ISO7816.SW_NO_ERROR) {
             throw new CardRuntimeException("Error receiving AES key. SW: "
