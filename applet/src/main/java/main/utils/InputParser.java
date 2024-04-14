@@ -104,6 +104,7 @@ public class InputParser {
         System.out.println("-----SECRET STORAGE CARD CLIENT-----");
         System.out.println("Usage:");
         System.out.println("./gradlew run --args=\"[-h | --help] [-t <terminal number>] -i <instruction> [instruction_options]\"");
+        System.out.println("java -jar applet-1.0-SNAPSHOT.jar [-h | --help] [-t <terminal number>] -i <instruction> [instruction_options]");
         System.out.println();
         System.out.println("Instruction options:");
         System.out.println("-p, --pin <pin>\tFour digit card PIN.");
