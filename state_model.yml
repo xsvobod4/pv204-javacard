@@ -1,0 +1,55 @@
+###########################
+#GENERAL CONFIGURATION
+###########################
+
+config:
+  package_name: applet
+
+###########################
+# SPECIAL STATES AND FNCS
+###########################
+states_special:
+  anytime_call: [block, sendState] 
+  anytime_reach: [STATE_CARD_BLOCKED]
+
+#####################
+#STATE TRANSITIONS
+#####################
+
+states_transitions:
+  STATE_APPLET_UPLOADED: #end of constructor
+    initSecureChannelKeys: STATE_KEYS_GENERATED
+
+  STATE_KEYS_GENERATED: #after initSecureChannelKeys
+    initSecureChannelKeys: STATE_KEYS_GENERATED
+    sendKeyToClient: STATE_SECURE_CHANNEL_ESTABLISHED
+    initializeKeys: STATE_KEYS_GENERATED
+
+  STATE_SECURE_CHANNEL_ESTABLISHED: # after sendKeyToClient
+    listSecrets: STATE_SECURE_RESPONSE_SEND
+    getSecretValue: STATE_SECURE_RESPONSE_SEND
+    storeSecret: STATE_SECURE_RESPONSE_SEND
+    updatePIN: STATE_SECURE_RESPONSE_SEND
+    verifyPIN: STATE_SECURE_RESPONSE_SEND
+
+  STATE_SECURE_RESPONSE_SEND: # after every request
+    deselect: STATE_APPLET_UPLOADED
+
+############################
+#SECONDARY STATE CHECKING
+############################
+
+secondary_state_check:
+  KEY_RSA_0_PARTS_RECEIVED: [initSecureChannelKeys]
+
+  KEY_RSA_1_PARTS_RECEIVED: [initSecureChannelKeys]
+  
+  KEY_RSA_2_PARTS_RECEIVED: [initSecureChannelKeys]
+
+  KEY_RSA_3_PARTS_RECEIVED: [initSecureChannelKeys, initializeKeys]
+
+  KEY_RSA_WHOLE_ESTABLISHED:  [initSecureChannelKeys, sendKeyToClient]
+
+  KEY_AES_1_PART_SEND: [initSecureChannelKeys, sendKeyToClient]
+
+  KEY_AES_2_PARTS_SEND: [initSecureChannelKeys, listSecrets, getSecretValue, storeSecret, updatePIN, verifyPIN]
