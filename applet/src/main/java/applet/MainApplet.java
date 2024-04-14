@@ -180,12 +180,12 @@ public class MainApplet extends Applet implements MultiSelectable {
 			case INS_LIST_SECRETS:
 				stateModel.checkAllowedFunction(StateModel.FNC_listSecrets);
 				listSecrets(apdu);
-				stateModel.changeState(StateModel.STATE_SECURE_RESPONSE_SEND);
+				//stateModel.changeState(StateModel.STATE_SECURE_RESPONSE_SEND);
 				break;
 			case INS_GET_SECRET_VALUE:
 				stateModel.checkAllowedFunction(StateModel.FNC_getSecretValue);
 				getSecretValue(apdu);
-				stateModel.changeState(StateModel.STATE_SECURE_RESPONSE_SEND);
+				//stateModel.changeState(StateModel.STATE_SECURE_RESPONSE_SEND);
 				break;
 			case INS_GET_STATE:
 				// Return the current state of the applet
@@ -195,17 +195,17 @@ public class MainApplet extends Applet implements MultiSelectable {
 			case INS_SET_SECRET:
 				stateModel.checkAllowedFunction(StateModel.FNC_storeSecret);
 				storeSecret(apdu);
-				stateModel.changeState(StateModel.STATE_SECURE_RESPONSE_SEND);
+				//stateModel.changeState(StateModel.STATE_SECURE_RESPONSE_SEND);
 				break;
 			case INS_CHANGE_PIN:
 				stateModel.checkAllowedFunction(StateModel.FNC_updatePIN);
 				updatePIN(apdu);
-				stateModel.changeState(StateModel.STATE_SECURE_RESPONSE_SEND);
+				//stateModel.changeState(StateModel.STATE_SECURE_RESPONSE_SEND);
 				break;
 			case INS_VERIFY_PIN:
 				stateModel.checkAllowedFunction(StateModel.FNC_verifyPIN);
 				verifyPIN(apdu,(short) 5, (short) 9);
-				stateModel.changeState(StateModel.STATE_SECURE_RESPONSE_SEND);
+				//stateModel.changeState(StateModel.STATE_SECURE_RESPONSE_SEND);
 				break;
 			default:
 				ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
