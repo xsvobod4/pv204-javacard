@@ -9,7 +9,7 @@ config:
 # SPECIAL STATES AND FNCS
 ###########################
 states_special:
-  anytime_call: [block, sendState] 
+  anytime_call: [block, sendState]
   anytime_reach: [STATE_CARD_BLOCKED]
 
 #####################
@@ -43,10 +43,8 @@ secondary_state_check:
   KEY_RSA_0_PARTS_RECEIVED: [initSecureChannelKeys]
 
   KEY_RSA_1_PARTS_RECEIVED: [initSecureChannelKeys]
-  
-  KEY_RSA_2_PARTS_RECEIVED: [initSecureChannelKeys]
 
-  KEY_RSA_3_PARTS_RECEIVED: [initSecureChannelKeys, initializeKeys]
+  KEY_RSA_2_PARTS_RECEIVED: [initSecureChannelKeys, initializeKeys]
 
   KEY_RSA_WHOLE_ESTABLISHED:  [initSecureChannelKeys, sendKeyToClient]
 

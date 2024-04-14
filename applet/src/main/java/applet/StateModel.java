@@ -18,7 +18,6 @@ public class StateModel {
     public static final short KEY_RSA_0_PARTS_RECEIVED                  = (short) 0xDB48; // 1101101101001000
     public static final short KEY_RSA_1_PARTS_RECEIVED                  = (short) 0x03C5; // 0000001111000101
     public static final short KEY_RSA_2_PARTS_RECEIVED                  = (short) 0x2942; // 0010100101000010
-    public static final short KEY_RSA_3_PARTS_RECEIVED                  = (short) 0xD25D; // 1101001001011101
     public static final short KEY_RSA_WHOLE_ESTABLISHED                 = (short) 0xC234; // 1100001000110100
     public static final short STATE_APPLET_UPLOADED                     = (short) 0x546E; // 0101010001101110
     public static final short STATE_CARD_BLOCKED                        = (short) 0x4379; // 0100001101111001
@@ -80,7 +79,6 @@ public class StateModel {
     public short getSecondaryState() {
         return STATE_SECONDARY;
     }
-
     public short getPreviousState() {
         return STATE_PREVIOUS;
     }
@@ -156,10 +154,6 @@ public class StateModel {
                 CardRuntimeException.throwIt(SW_FUNCTINNOTALLOWED); // if reached, function is not allowed in given state
                 break;
             case KEY_RSA_2_PARTS_RECEIVED:
-                if (requestedFnc == FNC_initSecureChannelKeys) return;
-                CardRuntimeException.throwIt(SW_FUNCTINNOTALLOWED); // if reached, function is not allowed in given state
-                break;
-            case KEY_RSA_3_PARTS_RECEIVED:
                 if (requestedFnc == FNC_initSecureChannelKeys) return;
                 if (requestedFnc == FNC_initializeKeys) return;
                 CardRuntimeException.throwIt(SW_FUNCTINNOTALLOWED); // if reached, function is not allowed in given state

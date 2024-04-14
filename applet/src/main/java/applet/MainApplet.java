@@ -212,8 +212,21 @@ public class MainApplet extends Applet implements MultiSelectable {
 				break;
 			case (short) 36:
 				//myArrayCopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, (short) 220, (short) 200);
+				if (stateModel.getSecondaryState() == StateModel.KEY_RSA_1_PARTS_RECEIVED){
+					stateModel.setSecondaryState(StateModel.KEY_RSA_2_PARTS_RECEIVED);
+				}
+				else{
+					stateModel.setSecondaryState(StateModel.KEY_RSA_0_PARTS_RECEIVED);
+				}
 				Util.arrayCopyNonAtomic(apduBuffer, ISO7816.OFFSET_CDATA, rsaKeyBytes, (short) 220, (short) 36);
+				stateModel.checkAllowedFunction(StateModel.FNC_initializeKeys);
 				initializeKeys();
+				if (stateModel.getSecondaryState() == StateModel.KEY_RSA_2_PARTS_RECEIVED){
+					stateModel.setSecondaryState(StateModel.KEY_RSA_WHOLE_ESTABLISHED);
+				}
+				else{
+					stateModel.setSecondaryState(StateModel.KEY_RSA_0_PARTS_RECEIVED);
+				}
 				break;
 			default:
 				ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
