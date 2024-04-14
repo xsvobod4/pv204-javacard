@@ -4,6 +4,7 @@ import javacard.framework.ISO7816;
 import javacard.framework.Util;
 import main.exceptions.CardRuntimeException;
 import main.exceptions.DataLengthException;
+import main.security.JcSecureChannel;
 import main.utils.constants.ClassConstants;
 import main.utils.constants.InstructionConstants;
 import main.utils.constants.OffsetConstants;
@@ -37,6 +38,7 @@ public class ApduFactory {
      * @param pin PIN
      * @return Built APDU
      */
+    @Deprecated
     public static CommandAPDU sendPinApdu(String pin) {
 
         if (pin.length() != PIN_LENGTH) {
@@ -72,7 +74,9 @@ public class ApduFactory {
      * @param key Key
      * @return Built APDU
      */
-    public static CommandAPDU revealSecretApdu(String pin, Byte key) {
+    public static CommandAPDU revealSecretApdu(String pin, Byte key, JcSecureChannel sc) {
+
+        byte[] dataToSend;
 
         if (pin.length() != PIN_LENGTH) {
             throw new DataLengthException("Pin is of incorrect length");
@@ -82,12 +86,19 @@ public class ApduFactory {
             throw new DataLengthException("Data key is of incorrect length");
         }
 
+        if (sc == null) {
+            dataToSend = TypeConverter.stringIntToByteArray(pin);
+        } else {
+            dataToSend = sc.encrypt(TypeConverter.stringIntToByteArray(pin));
+        }
+
         return genericApdu(
                 ClassConstants.CLA_BASIC,
                 InstructionConstants.INS_REVEAL_SECRET,
                 key,
                 OffsetConstants.OFFSET_NULL,
-                TypeConverter.stringIntToByteArray(pin));
+                dataToSend
+        );
     }
 
     /**
@@ -97,7 +108,9 @@ public class ApduFactory {
      * @param newPin New PIN
      * @return Built APDU
      */
-    public static CommandAPDU changePinApdu(String oldPin, String newPin) {
+    public static CommandAPDU changePinApdu(String oldPin, String newPin, JcSecureChannel sc) {
+
+        byte[] dataToSend;
 
         if (oldPin.length() != PIN_LENGTH) {
             throw new DataLengthException("Old pin is of incorrect length");
@@ -107,15 +120,26 @@ public class ApduFactory {
             throw new DataLengthException("New pin is of incorrect length");
         }
 
+        if (sc == null) {
+            dataToSend = TypeConverter.stringIntToByteArray(oldPin+newPin);
+        } else {
+            dataToSend = sc.encrypt(TypeConverter.stringIntToByteArray(oldPin+newPin));
+        }
+
         return genericApdu(
                 ClassConstants.CLA_BASIC,
                 InstructionConstants.INS_CHANGE_PIN,
                 OffsetConstants.OFFSET_NULL,
                 OffsetConstants.OFFSET_NULL,
-                TypeConverter.stringIntToByteArray(oldPin+newPin));
+                dataToSend
+        );
     }
 
-    public static CommandAPDU setSecretApdu(Byte key, Byte overwrite, String secret, String pin) {
+    public static CommandAPDU setSecretApdu(Byte key,
+                                            Byte overwrite,
+                                            String secret,
+                                            String pin,
+                                            JcSecureChannel sc) {
 
         if (secret.length() > SECRET_MAX_LENGTH) {
             throw new DataLengthException("Secret is of incorrect length");
@@ -148,7 +172,7 @@ public class ApduFactory {
                 InstructionConstants.INS_SET_SECRET,
                 key,
                 overwrite,
-                combined);
+                sc.encrypt(combined));
     }
 
     /**
@@ -164,5 +188,29 @@ public class ApduFactory {
                 OffsetConstants.OFFSET_SELECT,
                 OffsetConstants.OFFSET_NULL,
                 TypeConverter.hexStringToByteArray(appletAID));
+    }
+
+    public static CommandAPDU sendKeyApdu(byte[] key) {
+        if (key.length > 255) {
+            throw new DataLengthException("Public key part is too long.");
+        }
+
+        return genericApdu(
+                ClassConstants.CLA_BASIC,
+                InstructionConstants.INS_SC_INIT,
+                OffsetConstants.OFFSET_NULL,
+                OffsetConstants.OFFSET_NULL,
+                key
+        );
+    }
+
+    public static CommandAPDU requestSymKey(byte keyPartOrder) {
+        return ApduFactory.genericApdu(
+                ClassConstants.CLA_BASIC,
+                InstructionConstants.INS_SC_GET_KEY,
+                OffsetConstants.OFFSET_NULL,
+                OffsetConstants.OFFSET_NULL,
+                new byte[]{keyPartOrder}
+        );
     }
 }

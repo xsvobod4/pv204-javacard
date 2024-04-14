@@ -9,12 +9,11 @@ import javax.smartcardio.CommandAPDU;
 
 import static main.utils.ApduFactory.genericApdu;
 import static org.junit.jupiter.api.Assertions.*;
-
 public class ApduFactoryTest {
 
     @Test
     public void testPinChangeApdu() {
-        CommandAPDU commandAPDU = ApduFactory.changePinApdu("1234", "4321");
+        CommandAPDU commandAPDU = ApduFactory.changePinApdu("1234", "4321", null);
         assertEquals(ClassConstants.CLA_BASIC, commandAPDU.getCLA());
         assertEquals(InstructionConstants.INS_CHANGE_PIN, commandAPDU.getINS());
         assertEquals(OffsetConstants.OFFSET_NULL, commandAPDU.getP1());
@@ -24,7 +23,7 @@ public class ApduFactoryTest {
 
     @Test
     public void testRevealSecretApdu() {
-        CommandAPDU commandAPDU = ApduFactory.revealSecretApdu("1234", (byte) 0x01);
+        CommandAPDU commandAPDU = ApduFactory.revealSecretApdu("1234", (byte) 0x01, null);
         assertEquals(ClassConstants.CLA_BASIC, commandAPDU.getCLA());
         assertEquals(InstructionConstants.INS_REVEAL_SECRET, commandAPDU.getINS());
         assertEquals(OffsetConstants.OFFSET_ONE, commandAPDU.getP1());
@@ -34,7 +33,7 @@ public class ApduFactoryTest {
 
     @Test
     public void testRevealSecretApdu2() {
-        CommandAPDU commandAPDU = ApduFactory.revealSecretApdu("1234", (byte) 0x0c);
+        CommandAPDU commandAPDU = ApduFactory.revealSecretApdu("1234", (byte) 0x0c, null);
         assertEquals(ClassConstants.CLA_BASIC, commandAPDU.getCLA());
         assertEquals(InstructionConstants.INS_REVEAL_SECRET, commandAPDU.getINS());
         assertEquals(OffsetConstants.OFFSET_TWELVE, commandAPDU.getP1());
