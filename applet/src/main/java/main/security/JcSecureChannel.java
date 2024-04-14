@@ -71,12 +71,13 @@ public class JcSecureChannel implements ICipher {
 
         apdu = ApduFactory.requestSymKey((byte) 0x01);
         response = channel.transmit(apdu);
-        System.arraycopy(response.getData(), 0, encKey, 0, 256);
 
         if ((short) response.getSW() != ISO7816.SW_NO_ERROR) {
             throw new CardRuntimeException("Error receiving AES key. SW: "
                     + (short) response.getSW());
         }
+
+        System.arraycopy(response.getData(), 0, encKey, 0, 256);
 
         aes.setKey(rsa.decrypt(encKey));
 

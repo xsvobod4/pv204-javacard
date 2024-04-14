@@ -60,6 +60,9 @@ public class MainApplet extends Applet implements MultiSelectable {
 	private byte[] aesKeyEncrypted;
 	private Cipher aesCipherEnc;
 	private Cipher aesCipherDec;
+	private byte[] partOfKey;
+	private byte[] aesKeyBytes;
+	private byte[] transitentArray;
 
 	private static final short AES_KEY_SIZE_BYTES = 16; // AES key size in bytes
 	private final byte[] exponentBytes = {0x01, 0x00, 0x01};
@@ -85,6 +88,28 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 		secretValues = new SecretStore[MAX_SECRET_COUNT];
 		secretStatus = new byte[MAX_SECRET_COUNT];
+
+		//Transient arrays
+		short maxPossibleValue;
+
+		if (MAX_SECRET_VALUE_LENGTH > MAX_SECRET_COUNT) {
+			maxPossibleValue = MAX_SECRET_VALUE_LENGTH;
+		} else {
+			maxPossibleValue = MAX_SECRET_COUNT;
+		}
+
+		short remainder = (short) (AES_KEY_SIZE_BYTES + (short) ((short) ( - maxPossibleValue) % AES_KEY_SIZE_BYTES));
+
+		partOfKey = JCSystem.makeTransientByteArray((short) 256, JCSystem.CLEAR_ON_DESELECT);
+		aesKeyBytes = JCSystem.makeTransientByteArray(AES_KEY_SIZE_BYTES, JCSystem.CLEAR_ON_DESELECT);
+		transitentArray = JCSystem.makeTransientByteArray(
+				(short) (maxPossibleValue + remainder),
+				JCSystem.CLEAR_ON_DESELECT);
+
+		// Initialize AES cipher for decryption
+		aesCipherDec = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_ECB_NOPAD, false);
+		// Create AES cipher instance for encryption
+		aesCipherEnc = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_ECB_NOPAD, false);
 
 		for (short i = (short) 0; i < MAX_SECRET_COUNT; i++) {
 			secretValues[i] = new SecretStore();
@@ -228,7 +253,6 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 		// Generate AES key
 		//byte[] aesKeyBytes = new byte[AES_KEY_SIZE_BYTES];
-		byte[] aesKeyBytes = JCSystem.makeTransientByteArray(AES_KEY_SIZE_BYTES, JCSystem.CLEAR_ON_DESELECT);
 		doGenerateRandom(aesKeyBytes, (short) 0, AES_KEY_SIZE_BYTES);
 		aesKey.setKey(aesKeyBytes, (short) 0);
 		// Create a separate byte buffer to hold the encrypted data
@@ -245,14 +269,18 @@ public class MainApplet extends Applet implements MultiSelectable {
 		apdu.setOutgoing();
 		apdu.setOutgoingLength((short) 256);
 
-		//byte[] partOfKey = new byte[256];
-		byte[] partOfKey = JCSystem.makeTransientByteArray((short) 256, JCSystem.CLEAR_ON_DESELECT);
+		//byte[] partOfKey = new byte[256]
+		try {
 
-		if(apduBuffer[ISO7816.OFFSET_CDATA] == 1){
-			//myArrayCopy(aesKeyEncrypted, ISO7816.OFFSET_CLA, partOfKey, (short) 0, (short) 256);
-			Util.arrayCopyNonAtomic(aesKeyEncrypted, ISO7816.OFFSET_CLA, partOfKey, (short) 0, (short) 256);
+			if (apduBuffer[ISO7816.OFFSET_CDATA] == 1) {
+				//myArrayCopy(aesKeyEncrypted, ISO7816.OFFSET_CLA, partOfKey, (short) 0, (short) 256);
+				Util.arrayCopyNonAtomic(aesKeyEncrypted, ISO7816.OFFSET_CLA, partOfKey, (short) 0, (short) 256);
+			}
+
+			apdu.sendBytesLong(partOfKey, (short) 0, (short) partOfKey.length);
+		} catch (NegativeArraySizeException | SystemException e) {
+			ISOException.throwIt((short) 1111);
 		}
-		apdu.sendBytesLong(partOfKey, (short) 0, (short) partOfKey.length);
 	}
 
 
@@ -262,8 +290,6 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 	private void decryptAPDU(byte[] apduBuffer) {
 		try {
-			// Initialize AES cipher for decryption
-			Cipher aesCipherDec = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_ECB_NOPAD, false);
 
 			// Initialize AES cipher with the AES key
 			aesCipherDec.init(aesKey, Cipher.MODE_DECRYPT);
@@ -296,37 +322,30 @@ public class MainApplet extends Applet implements MultiSelectable {
 	}
 
 
-	private byte[] encryptData(byte[] data, short dataLength) {
+	private short encryptData(byte[] data, short dataLength) {
 		try {
 
 			//Creates a transient array of the length needed to encrypt the data
 			//Thant means data lenght and padding lenght
 
 			short paddingLength = (short) (AES_KEY_SIZE_BYTES + (short) ((short) ( - dataLength) % AES_KEY_SIZE_BYTES));
-
-			byte[] transitentArray = JCSystem.makeTransientByteArray(
-					(short)
-					(dataLength
-					+ paddingLength),
-					JCSystem.CLEAR_ON_DESELECT);
+			short encryptedLength = (short) (dataLength + paddingLength);
 
 			Util.arrayCopyNonAtomic(data, (short) 0, transitentArray, (short) 0, dataLength);
 
 			padPKCS7(transitentArray, dataLength);
-			// Create AES cipher instance for encryption
-			Cipher aesCipherEnc = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_ECB_NOPAD, false);
 
 			// Initialize AES cipher with the AES key
 			aesCipherEnc.init(aesKey, Cipher.MODE_ENCRYPT);
 
 			// Encrypt the data
-			aesCipherEnc.doFinal(transitentArray, (short) 0, (short) transitentArray.length, transitentArray, (short) 0);
+			aesCipherEnc.doFinal(transitentArray, (short) 0, (short) (dataLength + paddingLength), transitentArray, (short) 0);
 
-			return transitentArray; // Return the modified data array after encryption
+			return encryptedLength; // Return the length of encrypted data
 		} catch (CryptoException e) {
 			// Handle encryption error
 			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
-			return null; // Return null in case of error
+			return 0x00; // Return null in case of error
 		}
 	}
 
@@ -371,26 +390,37 @@ public class MainApplet extends Applet implements MultiSelectable {
 
 		//byte[] secretStatusCopy = new byte[MAX_SECRET_COUNT];
 		//Util.arrayCopyNonAtomic(secretStatus, (short) 0, secretStatusCopy, (short) 0, MAX_SECRET_COUNT);
-		byte[] secretStatusCopy = encryptData(secretStatus, MAX_SECRET_COUNT); // Encrypt the data and get the modified array
+		short encryptedLength = encryptData(secretStatus, MAX_SECRET_COUNT); // Encrypt the data and get the modified array
 
-		short encryptedLength = (short) secretStatusCopy.length;
 		apdu.setOutgoingLength(encryptedLength); // Set outgoing length to the size of encrypted data
 
-		apdu.sendBytesLong(secretStatusCopy, (short) 0, encryptedLength);
+		apdu.sendBytesLong(transitentArray, (short) 0, encryptedLength);
 	}
 
 	public boolean select(boolean b) {
+		deselect(true);
 		return true;
 	}
 
 	public void deselect(boolean b) {
 
-		if (stateModel.getState() != StateModel.STATE_APPLET_UPLOADED) {
-			stateModel.changeState(StateModel.STATE_UNPRIVILEGED);
-		}
+		//if (stateModel.getState() != StateModel.STATE_APPLET_UPLOADED) {
+		//	stateModel.changeState(StateModel.STATE_UNPRIVILEGED);
+		//}
 		// clear key?
 		aesKey.clearKey();
 		rsaPublicKey.clearKey();
+		Util.arrayFillNonAtomic(
+				aesKeyEncrypted,
+				(short) 0,
+				(short) aesKeyEncrypted.length,
+				(byte) 0x00);
+		Util.arrayFillNonAtomic(
+				rsaKeyBytes,
+				(short) 0,
+				(short) rsaKeyBytes.length,
+				(byte) 0x00
+		);
 	}
 
 	private void storeSecret(APDU apdu) {
@@ -478,11 +508,11 @@ public class MainApplet extends Applet implements MultiSelectable {
 			// Handle the case where encryption failed
 			ISOException.throwIt(ISO7816.SW_DATA_INVALID);
 		}
-		byte[] encryptedSecretValue = encryptData(secretValue, secretValueLen);
+		short encryptedLength = encryptData(secretValue, secretValueLen);
 
 		apdu.setOutgoing();
-		apdu.setOutgoingLength( (short) encryptedSecretValue.length);
-		apdu.sendBytesLong(encryptedSecretValue , (short) 0, (short) encryptedSecretValue.length);
+		apdu.setOutgoingLength(encryptedLength);
+		apdu.sendBytesLong(transitentArray , (short) 0, encryptedLength);
 	}
 
 	private void sendState(APDU apdu) {
