@@ -15,7 +15,7 @@ public class RSACipher implements ICipher {
     private KeyPair rsaKeyPair;
     private Cipher rsaDecryptCipher;
 
-    private static final int RSA_KEY_LENGTH = 4096;
+    private static final int RSA_KEY_LENGTH = 2048;
 
     public RSACipher() {
         generateRSAKeyPair();

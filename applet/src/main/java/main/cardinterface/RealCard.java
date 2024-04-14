@@ -77,7 +77,7 @@ public class RealCard implements ICard {
             }
 
             if ((short) responseAPDU.getSW() != ISO7816.SW_NO_ERROR) {
-                throw new CardRuntimeException("Failed to send pin. Card code: " + responseAPDU.getSW());
+                throw new CardRuntimeException("Failed to send secret. Card code: " + (short) responseAPDU.getSW());
             }
         } catch (CardException e) {
             throw new CardRuntimeException("Card connection problem. Failed to store value. Card code: " + e.getMessage());

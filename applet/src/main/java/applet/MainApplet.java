@@ -60,8 +60,6 @@ public class MainApplet extends Applet implements MultiSelectable {
 	private byte[] aesKeyEncrypted;
 	private Cipher aesCipherEnc;
 	private Cipher aesCipherDec;
-	private static final short RSA_MODULUS_LENGTH = 128; // Length of RSA modulus in bytes
-	private static final short RSA_MODULUS_LENGTH_512 = 512; // Length of RSA modulus in bytes
 
 	private static final short AES_KEY_SIZE_BYTES = 16; // AES key size in bytes
 	private final byte[] exponentBytes = {0x01, 0x00, 0x01};
@@ -82,8 +80,8 @@ public class MainApplet extends Applet implements MultiSelectable {
 		// generateRandomAESKey(aesKey);
 		rsaCipher = Cipher.getInstance(Cipher.ALG_RSA_PKCS1, false);
 		rng = RandomData.getInstance(RandomData.ALG_SECURE_RANDOM);
-		aesKeyEncrypted = new byte[512];
-		rsaKeyBytes = new byte[512];
+		aesKeyEncrypted = new byte[256];
+		rsaKeyBytes = new byte[256];
 
 		secretValues = new SecretStore[MAX_SECRET_COUNT];
 		secretStatus = new byte[MAX_SECRET_COUNT];
@@ -207,13 +205,9 @@ public class MainApplet extends Applet implements MultiSelectable {
 				//myArrayCopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, (short) 0, (short) 220);
 				Util.arrayCopyNonAtomic(apduBuffer, ISO7816.OFFSET_CDATA, rsaKeyBytes, (short) 0, (short) 220);
 				break;
-			case (short) 200:
+			case (short) 36:
 				//myArrayCopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, (short) 220, (short) 200);
-				Util.arrayCopyNonAtomic(apduBuffer, ISO7816.OFFSET_CDATA, rsaKeyBytes, (short) 220, (short) 200);
-				break;
-			case (short) 92:
-				//myArrayCopy(apduBuffer, ISO7816.OFFSET_CDATA, RSAKeyBytes, (short) 420, (short) 92);
-				Util.arrayCopyNonAtomic(apduBuffer, ISO7816.OFFSET_CDATA, rsaKeyBytes, (short) 420, (short) 92);
+				Util.arrayCopyNonAtomic(apduBuffer, ISO7816.OFFSET_CDATA, rsaKeyBytes, (short) 220, (short) 36);
 				initializeKeys();
 				break;
 			default:
@@ -222,17 +216,21 @@ public class MainApplet extends Applet implements MultiSelectable {
 	}
 
 	private void initializeKeys(){
-		rsaPublicKey = (RSAPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_RSA_PUBLIC, RSA_MODULUS_LENGTH_512, false);
-		rsaPublicKey.setModulus(rsaKeyBytes, (short) 0, (short) 512);
+
+		try {
+			rsaPublicKey = (RSAPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_RSA_PUBLIC, KeyBuilder.LENGTH_RSA_2048, false);
+			rsaPublicKey.setModulus(rsaKeyBytes, (short) 0, (short) 256);
+			// Exponent value 65537
+			rsaPublicKey.setExponent(exponentBytes, (short) 0, (short) exponentBytes.length);
+		} catch (CryptoException e) {
+			ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+		}
 
 		// Generate AES key
 		//byte[] aesKeyBytes = new byte[AES_KEY_SIZE_BYTES];
 		byte[] aesKeyBytes = JCSystem.makeTransientByteArray(AES_KEY_SIZE_BYTES, JCSystem.CLEAR_ON_DESELECT);
 		doGenerateRandom(aesKeyBytes, (short) 0, AES_KEY_SIZE_BYTES);
 		aesKey.setKey(aesKeyBytes, (short) 0);
-
-		// Exponent value 65537
-		rsaPublicKey.setExponent(exponentBytes, (short) 0, (short) exponentBytes.length);
 		// Create a separate byte buffer to hold the encrypted data
 
 		// Encrypt AES key using RSA public key
@@ -253,10 +251,6 @@ public class MainApplet extends Applet implements MultiSelectable {
 		if(apduBuffer[ISO7816.OFFSET_CDATA] == 1){
 			//myArrayCopy(aesKeyEncrypted, ISO7816.OFFSET_CLA, partOfKey, (short) 0, (short) 256);
 			Util.arrayCopyNonAtomic(aesKeyEncrypted, ISO7816.OFFSET_CLA, partOfKey, (short) 0, (short) 256);
-		}
-		else if (apduBuffer[ISO7816.OFFSET_CDATA] == 2) {
-			//myArrayCopy(aesKeyEncrypted, (short) 256, partOfKey, (short) 0, (short) 256);
-			Util.arrayCopyNonAtomic(aesKeyEncrypted, (short) 256, partOfKey, (short) 0, (short) 256);
 		}
 		apdu.sendBytesLong(partOfKey, (short) 0, (short) partOfKey.length);
 	}
