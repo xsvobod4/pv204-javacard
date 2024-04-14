@@ -13,6 +13,8 @@ public class StateModel {
 
     // States constants
     public static final short STATE_UNSPECIFIED                         = (short) 0xF0F0;
+    public static final short KEY_AES_1_PART_SEND                       = (short) 0xB6C7; // 1011011011000111
+    public static final short KEY_AES_2_PARTS_SEND                      = (short) 0x2581; // 0010010110000001
     public static final short KEY_RSA_0_PARTS_RECEIVED                  = (short) 0xDB48; // 1101101101001000
     public static final short KEY_RSA_1_PARTS_RECEIVED                  = (short) 0x03C5; // 0000001111000101
     public static final short KEY_RSA_2_PARTS_RECEIVED                  = (short) 0x2942; // 0010100101000010
@@ -75,6 +77,10 @@ public class StateModel {
         return STATE_CURRENT;
     }
 
+    public short getSecondaryState() {
+        return STATE_SECONDARY;
+    }
+
     public short getPreviousState() {
         return STATE_PREVIOUS;
     }
@@ -127,6 +133,20 @@ public class StateModel {
 
         // Check if function can be called from current state
         switch (currentSecondaryState) {
+            case KEY_AES_1_PART_SEND:
+                if (requestedFnc == FNC_initSecureChannelKeys) return;
+                if (requestedFnc == FNC_sendKeyToClient) return;
+                CardRuntimeException.throwIt(SW_FUNCTINNOTALLOWED); // if reached, function is not allowed in given state
+                break;
+            case KEY_AES_2_PARTS_SEND:
+                if (requestedFnc == FNC_getSecretValue) return;
+                if (requestedFnc == FNC_initSecureChannelKeys) return;
+                if (requestedFnc == FNC_listSecrets) return;
+                if (requestedFnc == FNC_storeSecret) return;
+                if (requestedFnc == FNC_updatePIN) return;
+                if (requestedFnc == FNC_verifyPIN) return;
+                CardRuntimeException.throwIt(SW_FUNCTINNOTALLOWED); // if reached, function is not allowed in given state
+                break;
             case KEY_RSA_0_PARTS_RECEIVED:
                 if (requestedFnc == FNC_initSecureChannelKeys) return;
                 CardRuntimeException.throwIt(SW_FUNCTINNOTALLOWED); // if reached, function is not allowed in given state
@@ -145,12 +165,8 @@ public class StateModel {
                 CardRuntimeException.throwIt(SW_FUNCTINNOTALLOWED); // if reached, function is not allowed in given state
                 break;
             case KEY_RSA_WHOLE_ESTABLISHED:
-                if (requestedFnc == FNC_getSecretValue) return;
-                if (requestedFnc == FNC_listSecrets) return;
+                if (requestedFnc == FNC_initSecureChannelKeys) return;
                 if (requestedFnc == FNC_sendKeyToClient) return;
-                if (requestedFnc == FNC_storeSecret) return;
-                if (requestedFnc == FNC_updatePIN) return;
-                if (requestedFnc == FNC_verifyPIN) return;
                 CardRuntimeException.throwIt(SW_FUNCTINNOTALLOWED); // if reached, function is not allowed in given state
                 break;
             default:
